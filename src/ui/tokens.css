@@ -1,0 +1,66 @@
+/*
+  Design tokens — single source of truth for the UI.
+  Mirrored for shaders in tokens.ts (keep both in sync).
+*/
+:root {
+  /* Grounds */
+  --mist-0: #f1f3f4;      /* atelier top */
+  --mist-1: #d3d9de;      /* atelier bottom */
+  --plate: #f3f1ec;       /* field paper */
+  --plate-deep: #ebe8e1;
+
+  /* Ink */
+  --ink: #1b2127;
+  --ink-2: rgba(27, 33, 39, 0.64);
+  --ink-3: rgba(27, 33, 39, 0.4);
+  --hair: rgba(27, 33, 39, 0.16);
+  --hair-soft: rgba(27, 33, 39, 0.07);
+
+  /* Contour ramp */
+  --rose: #f0a3c4;
+  --magenta: #d2237a;
+  --ultramarine: #3b3fcf;
+
+  /* Live signal (wire cage, active nodes) */
+  --signal: #a9b82e;
+  --signal-soft: rgba(169, 184, 46, 0.22);
+
+  /* Trait hues (ligaments) */
+  --trait-genus: #3b3fcf;
+  --trait-sphericity: #d2237a;
+  --trait-elongation: #1f7f86;
+  --trait-roughness: #b7801a;
+  --trait-compression: #e07aa6;
+  --trait-concavity: #6e4fc9;
+  --trait-volume: #4f6b2a;
+
+  /* Type */
+  --font-display: 'Instrument Serif', 'Times New Roman', serif;
+  --font-text: 'Instrument Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+
+  --t-micro: 10px;
+  --t-small: 11.5px;
+  --t-body: 13px;
+  --t-lead: 15px;
+  --t-title: 30px;
+  --t-display: clamp(44px, 5.2vw, 76px);
+
+  --track-caps: 0.11em;
+
+  /* Space (4px grid) */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --margin: clamp(18px, 2.2vw, 32px);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.1, 1);
+  --ease-soft: cubic-bezier(0.45, 0, 0.2, 1);
+  --t-fast: 180ms;
+  --t-med: 420ms;
+  --t-slow: 900ms;
+}
