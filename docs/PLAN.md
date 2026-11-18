@@ -1,156 +1,87 @@
-# bits to bits — Plan
+# bits to bits: plan
 
-A hand-sculpting instrument and a living specimen field.
-You shape a substance with your bare hands on the left; finished specimens settle on the right, where they find their relatives and **attach** (never fuse) for reasons the viewer can read.
+A hand-sculpting tool next to a living collection.
+Shape a form with your hands on the left. Forms you keep settle on the right, find their relatives and attach to them, while staying separate objects. Every attachment can say why it exists.
 
-Status: **planning** · POC, local browser, single user, no accounts.
+Status: working prototype. See [DECISIONS.md](DECISIONS.md) for what changed and why, and [DESIGN.md](DESIGN.md) for the visual system.
 
----
+## Experience
 
-## 1. Experience
+1. **Start**: camera or mouse.
+2. **Calibrate** (camera): the hand appears as a measured diagram of 21 joints with live dimension lines. Hold three poses: open, fist, pinch.
+3. **Sculpt**: the form answers to presence. Rings appear where a fingertip approaches; touched areas glow and cool.
+4. **Keep**: hold both palms open for 1.5 s (or press "Keep this form"). The form dissolves toward the collection.
+5. **Collection**: forms arrange by kinship. Close relatives grow thin ligaments between their nearest surfaces. Hover a form to see its traits, its relatives and the shared trait behind each attachment.
 
-```
-┌──────────────────────────┬──────────────────────────┐
-│  ATELIER  (left)         │  FIELD  (right)          │
-│                          │                          │
-│  calibrate → sculpt →    │  specimens drift, find   │
-│  accept                  │  kin, grow ligaments     │
-│                          │  labelled with "why"     │
-└──────────────────────────┴──────────────────────────┘
-```
+## Gestures
 
-1. **Calibrate** — hand appears as a measured node diagram; three poses (open, fist, pinch) set scale and thresholds.
-2. **Sculpt** — a mass of matter floats in the atelier. Hands deform it like clay. Color is data: it shows how the form was made.
-3. **Accept** — hold both palms open ~1.5s. The specimen crystallises, receives an ID and a measurement sheet, and travels to the field.
-4. **Field** — specimens arrange by similarity. Close relatives grow thin **ligaments** between their nearest surfaces. Each ligament carries a label naming the shared traits that caused it.
-
----
-
-## 2. Matter model
-
-**Signed distance field (SDF) volume = truth. Particles = skin.**
-
-- Shape: 128³ SDF in a 3D storage texture, edited by GPU compute brushes (smooth-union add, smooth-subtract carve, blur smooth, displace pull/twist).
-- Attribute channels stored per voxel alongside the SDF:
-  | Channel | Meaning | Written by |
-  |---|---|---|
-  | `compression` | pressed vs stretched | press, squeeze, pull |
-  | `heat` | recency of touch, decays | every brush |
-  | `curvature` | convex vs concave | derived from SDF |
-  | `thickness` | local wall thickness | derived |
-- Skin: ~150k GPU particles attracted to the iso-surface, sliding along it, scattering on contact. Particle density follows `compression`.
-
-### Material — Contour (default)
-Topographic drawing language from the reference plate:
-- Iso-lines sliced through the form (horizontal + view-aligned), fine hairline weight.
-- Line color mapped across a rose → magenta → ultramarine ramp by curvature; line density by compression; heat as a faint glow on fresh touches.
-- Thin surface shell underneath (pale, slightly translucent) so the form reads as solid.
-- Optional secondary lenses kept behind a toggle for later: Obsidian, Bioluminescent, Particle.
-
----
-
-## 3. Hand interaction
-
-**Tracking:** MediaPipe Hand Landmarker (`@mediapipe/tasks-vision`), GPU delegate, in a Web Worker. 21 landmarks × 2 hands. One-Euro filter per landmark. Depth from palm span (calibrated) + relative landmark z.
-
-**Calibration screen — "measurement plate"**
-- 21 joints rendered as nodes with true anatomical labels (CMC, MCP, PIP, DIP, TIP) set in small caps.
-- Dimension lines measure each finger segment live, like an architectural drawing (values in mm-estimate).
-- Three target poses shown as outline glyphs; each fills with a radial progress ring as you hold it.
-- Result card: hand span, finger ratios, pinch threshold — the user's "hand signature".
-
-**Gestures**
-| Gesture | Tool |
-|---|---|
-| Index pushes in | **Poke / drill** — capsule subtraction along fingertip path |
-| Pinch + pull | **Pull** — draws a neck / tendril |
-| Flat palm press | **Press** — flattens, raises compression |
-| Palm hover + stroke | **Smooth** |
-| Two hands close in | **Squeeze** — global compression |
-| Pinch + wrist roll | **Twist** |
-| Off-hand fist | **Turntable** — rotate the object |
-| Both palms open, hold | **Accept** |
-
-Contact feedback: surface warms and dimples *before* contact (proximity field), compensating for weak monocular depth.
-
----
-
-## 4. Field — similarity and attachment
-
-**Specimen signature** (computed on accept, normalised 0–1):
-volume · surface area · sphericity · elongation (PCA ratio) · genus (hole count) · mean |curvature| · concavity ratio · roughness · mean compression · color centroid.
-
-**Behaviour**
-- 3D force layout: attraction ∝ similarity, soft repulsion for all, gentle drift.
-- **Ligaments** form when similarity > threshold. They grow from each specimen's nearest surface points, as thin tensile struts with small nodes — never a smooth union. Each specimen keeps its own body.
-- **Explainability:** each ligament is colored by its dominant shared trait and labelled with a leader line, e.g. `genus 3 ↔ 3 · sphericity 0.71 ↔ 0.68`. Hovering a specimen shows its radar of traits and its top 3 kin with match %.
-- Clusters get a faint enclosing contour and a generated name (`Cluster B · porous · 4`).
-
----
-
-## 5. Design system
-
-**Direction:** a scientific plate, not an app. Paper, hairlines, annotations, dimensions. No black void, no floating GUI panels — information lives in the drawing as callouts and margins.
-
-**Type** (both OFL, Google Fonts, no italics, no mono)
-- **Instrument Serif** — display: specimen names, section titles.
-- **Instrument Sans** (variable, width axis) — UI, labels, data. Numerals use `tabular-nums` in place of mono.
-- Small caps + letter-spacing for anatomical/technical labels.
-
-**Color tokens**
-| Token | Use | Value (draft) |
+| Hand | Tool | Mouse key |
 |---|---|---|
-| `paper` | atelier ground, misty gradient | `#E9ECEF → #C9D1D8` |
-| `plate` | field ground, faint grid | `#F4F2EE` |
-| `ink` | text, hairlines | `#1C2228` |
-| `ink-soft` | secondary text, grid | `#1C2228 @ 45% / 12%` |
-| `rose` / `magenta` / `ultramarine` | contour ramp | `#F2A6C8` / `#D6247A` / `#3A3FD1` |
-| `signal` | live nodes, active ligaments | `#B9C93A` (chartreuse wire from ref 1) |
+| Point | Pierce: drills along the fingertip | 1 |
+| Pinch | Pull: draws matter out | 2 |
+| Open palm | Press: flattens and densifies | 3 |
+| Two fingers | Smooth | 4 |
+| Fist | Rotate | 5 (or right drag) |
+| Both palms open, held | Keep | Enter |
 
-**Elements:** hairline rules (0.5–1px), registration marks in corners, scale bar, north arrow, leader-line callouts, plate numbers, specimen cards like herbarium sheets.
+Other keys: `N` start over, `C` recalibrate. `?layout=rows` stacks the two panes for a portrait screen.
 
-**Motion:** slow, physical easing; nothing snaps. Ligaments grow with a drawn-line stroke; accepted specimens travel across the split along an arc.
+## How it works
 
-**Code:** tokens in one `tokens.css` (CSS custom properties) mirrored to a `tokens.ts` for shaders; UI as small vanilla TS components; no UI framework needed for the POC.
+**Matter.** A 96³ signed distance field (each point stores its distance to the surface) on the CPU is the source of truth. Brushes edit only the voxels they touch. The GPU gets a half-float copy plus an attribute texture (compression, heat). Rendering is a raymarch in a fragment shader that writes real depth, so the particle skin sorts correctly against it.
 
----
+**Particle skin.** 56k points with no CPU state. Each frame the vertex shader projects a slowly rotating seed onto the surface, so particles slide over the form and scatter from fingertips.
 
-## 6. Architecture
+**Colour as data.**
+- Contour line colour follows curvature: rose on flat areas, magenta in hollows, ultramarine on ridges.
+- Line density follows compression, so pressed areas draw tighter lines.
+- Heat shows recent touch.
+
+**Hands.** MediaPipe Hand Landmarker runs in a module Web Worker on the GPU delegate. Frames are sent only after the previous result returns, so tracking can never queue up behind rendering. A One-Euro filter smooths each landmark. Depth comes from palm size relative to the calibrated size, plus each landmark's relative depth.
+
+**Keeping a form.** Surface nets turn the field into a mesh. Seven traits, each 0 to 1:
+- openings (genus, from the Euler characteristic)
+- sphericity
+- elongation (principal axes)
+- concavity
+- roughness (curvature spread)
+- compression
+- volume
+
+Forms are stored in IndexedDB.
+
+**Kinship.** A weighted distance between trait vectors becomes a kinship score (0 to 1). Each form links to up to 3 relatives above 0.62. The explanation for a link is the trait the two forms share most distinctively against the rest of the collection. Ligaments are three bezier strands between support points on each surface, coloured by that trait.
+
+## Code map
 
 ```
 src/
-  input/       hand worker, filters, calibration, gesture → Tool events
-  sculpt/      SDF volume, compute brushes, attribute channels
-  render/      contour material, particle skin, scene/cameras
-  specimen/    signature extraction, mesh bake, serialization
-  field/       force layout, similarity, ligaments, labels
-  ui/          design tokens, plate chrome, callouts, cards
-  app/         state machine: calibrate → sculpt → accept → field
+  sculpt/    volume (field, brushes), sculptor (tools), seed (starting lumps, samples)
+  render/    atelier scene, clay raymarch material, particle skin
+  input/     hand worker, tracker, hand model and filters, calibration, hand → tools, pointer
+  specimen/  mesher (surface nets), signature (traits, kinship), specimen (naming, storage)
+  field/     collection scene, layout, ligaments, specimen material
+  ui/        tokens, base styles, chrome, hand overlay
 ```
 
-- Stack: Vite + TypeScript, Three.js (pinned) WebGPU renderer + TSL, WebGL2 fallback.
-- Input is abstract: gestures emit `Tool` events, so mouse (debug), depth cameras or VR can drive the same sculptor.
-- Only the active specimen is raymarched/full quality; accepted specimens are baked to meshes (marching cubes) so the field scales.
-- Persistence: IndexedDB (specimens as compressed 64³ volumes + signature). Reset button for demos.
-- Layout: one page, two halves. Built for a portrait display but responsive to a landscape laptop for testing.
+## Milestones
 
----
+- [x] Scaffold, design tokens, split layout
+- [x] Clay field, brushes, Contour material, particle skin
+- [x] Mouse tools
+- [x] Hand tracking worker, calibration, gestures
+- [x] Keeping forms: mesh, traits, naming, storage
+- [x] Collection: kinship layout, ligaments, hover detail
+- [ ] Tune gestures with a real camera session (depth gain, pinch threshold)
+- [ ] Twist and two-hand squeeze
+- [ ] Optional lenses (obsidian, glow)
+- [ ] Export a form (glTF)
 
-## 7. Milestones
+## Running
 
-1. **Scaffold** — Vite/TS/Three, tokens, plate chrome, split layout, mouse-driven debug tools.
-2. **Hands** — worker tracking, filtering, calibration plate.
-3. **Matter** — SDF volume, brushes, Contour material, particle skin.
-4. **Gestures** — map hands to tools, contact feedback, accept flow.
-5. **Specimens** — signature, bake, card, transfer animation.
-6. **Field** — layout, similarity, ligaments with explanations, clusters.
-7. **Polish** — motion, performance pass, demo seed specimens.
+```bash
+npm install
+npm run dev
+```
 
-Each milestone ends runnable in the browser.
-
----
-
-## References
-- Ref 1: obsidian form inside a chartreuse wire cage — line language for ligaments/signal.
-- Ref 2: metaballs with glowing rims — contact glow.
-- Ref 3: architecture plate (attractor points → field → amalgamation; contour output) — overall plate aesthetic and Contour material.
+Open http://localhost:5173 in Chrome. Camera access needs a normal browser tab.

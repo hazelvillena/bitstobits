@@ -5,10 +5,10 @@ export type ToolKind = 'drill' | 'pull' | 'press' | 'smooth' | 'turn';
 
 export const TOOLS: { kind: ToolKind; name: string; hand: string; key: string }[] = [
   { kind: 'drill', name: 'Pierce', hand: 'Point', key: '1' },
-  { kind: 'pull', name: 'Draw out', hand: 'Pinch', key: '2' },
+  { kind: 'pull', name: 'Pull', hand: 'Pinch', key: '2' },
   { kind: 'press', name: 'Press', hand: 'Open palm', key: '3' },
   { kind: 'smooth', name: 'Smooth', hand: 'Two fingers', key: '4' },
-  { kind: 'turn', name: 'Turn', hand: 'Fist', key: '5' },
+  { kind: 'turn', name: 'Rotate', hand: 'Fist', key: '5' },
 ];
 
 /**

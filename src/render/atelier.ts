@@ -58,7 +58,7 @@ export class Atelier {
     this.skin = createParticleSkin(this.volume, 56000, this.tips);
     this.object.add(this.skin.points);
 
-    // A sparse wire cage — the measured envelope around the matter.
+    // A sparse wire cage, the measured envelope around the matter.
     const cageGeo = new EdgesGeometry(new IcosahedronGeometry(1.12, 0));
     this.cage = new LineSegments(
       cageGeo,

@@ -1,6 +1,6 @@
 /*
-  Design tokens — single source of truth for the UI.
-  Mirrored for shaders in tokens.ts (keep both in sync).
+  Design tokens. Single source of truth for the UI.
+  Mirrored for shaders in tokens.ts. Keep both in sync.
 */
 :root {
   /* Grounds */
@@ -35,7 +35,6 @@
   --trait-volume: #4f6b2a;
 
   /* Type */
-  --font-display: 'Instrument Serif', 'Times New Roman', serif;
   --font-text: 'Instrument Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
 
   --t-micro: 10px;
@@ -43,9 +42,8 @@
   --t-body: 13px;
   --t-lead: 15px;
   --t-title: 30px;
-  --t-display: clamp(44px, 5.2vw, 76px);
+  --t-display: clamp(44px, 5vw, 72px);
 
-  --track-caps: 0.11em;
 
   /* Space (4px grid) */
   --s-1: 4px;

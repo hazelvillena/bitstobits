@@ -34,7 +34,7 @@ export const traitLabel: Record<TraitKey, string> = {
   volume: 'Volume',
   sphericity: 'Sphericity',
   elongation: 'Elongation',
-  genus: 'Apertures',
+  genus: 'Openings',
   concavity: 'Concavity',
   roughness: 'Roughness',
   compression: 'Compression',

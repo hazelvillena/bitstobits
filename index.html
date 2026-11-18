@@ -7,63 +7,53 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@75..100,400..700&family=Instrument+Serif&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@75..100,400..700&display=swap"
       rel="stylesheet"
     />
   </head>
   <body>
     <main class="stage" id="stage">
-      <!-- PLATE I — ATELIER -->
-      <section class="pane atelier" id="atelier" aria-label="Atelier">
+      <section class="pane atelier" id="atelier" aria-label="Sculpt">
         <canvas class="gl" id="atelier-canvas"></canvas>
         <canvas class="overlay2d" id="hand-canvas"></canvas>
         <video id="camera" playsinline muted></video>
 
-        <header class="plate-head">
-          <div class="plate-id"><span class="caps">Plate I</span><span class="rule"></span><span class="caps dim">Atelier</span></div>
-          <h1 class="plate-title">Matter under the hand</h1>
+        <header class="pane-head">
+          <span class="brand">bits to bits</span>
+          <span class="dim num" id="specimen-no">Form 1</span>
         </header>
 
-        <div class="plate-meta top-right">
-          <div class="meta-row"><span class="num" id="specimen-no">Specimen 001</span></div>
-        </div>
-
-        <footer class="plate-foot">
+        <footer class="pane-foot">
           <ol class="tools" id="tools"></ol>
-          <div class="readouts">
-            <button class="btn ghost small" id="btn-reset"><span>Begin again</span></button>
-            <button class="btn small primary" id="btn-accept"><span>Accept specimen</span></button>
+          <div class="actions-row">
+            <button class="btn ghost" id="btn-reset">Start over</button>
+            <button class="btn primary" id="btn-accept">Keep this form</button>
           </div>
         </footer>
 
         <div class="accept-ring" id="accept-ring" hidden>
           <svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="54" /><circle class="fill" cx="60" cy="60" r="54" /></svg>
-          <span class="caps">Accepting</span>
+          <span>Keeping</span>
         </div>
 
-        <!-- Intro -->
+        <div class="status" id="status" hidden></div>
+
         <div class="sheet intro" id="intro">
           <div class="sheet-inner">
-            <p class="caps dim">An instrument for shaping matter by hand</p>
             <h2 class="display">bits to bits</h2>
-            <p class="lead">
-              Shape a mass of matter with your hands. It records how it was made — pressure, apertures,
-              curvature — and joins a field of specimens that recognise their kin.
-            </p>
+            <p class="lead">Shape a form with your hands. Every form you keep finds its relatives.</p>
             <div class="actions">
-              <button class="btn primary" id="btn-calibrate"><span>Calibrate hands</span><i class="arrow"></i></button>
-              <button class="btn" id="btn-pointer"><span>Use pointer</span><i class="arrow"></i></button>
+              <button class="btn primary large" id="btn-calibrate">Start with camera</button>
+              <button class="btn ghost large" id="btn-pointer">Use mouse instead</button>
             </div>
-            <p class="fine dim">Camera frames stay on this device. Nothing is recorded or uploaded.</p>
+            <p class="fine dim">Video stays on this device.</p>
           </div>
         </div>
 
-        <!-- Calibration -->
         <div class="calibration" id="calibration" hidden>
           <div class="calib-head">
-            <p class="caps dim">Calibration</p>
-            <h2 class="calib-title" id="calib-title">Raise one open hand</h2>
-            <p class="calib-sub dim" id="calib-sub">Hold it a forearm's length from the screen, palm facing in.</p>
+            <h2 class="calib-title" id="calib-title">Show your open hand</h2>
+            <p class="calib-sub dim" id="calib-sub">About an arm's length from the screen.</p>
           </div>
           <ol class="poses" id="poses"></ol>
           <div class="signature" id="hand-signature" hidden></div>
@@ -72,30 +62,26 @@
 
       <div class="seam" aria-hidden="true"></div>
 
-      <!-- PLATE II — FIELD -->
-      <section class="pane field" id="field" aria-label="Field">
+      <section class="pane field" id="field" aria-label="Collection">
         <canvas class="gl" id="field-canvas"></canvas>
         <div class="labels" id="field-labels"></div>
 
-        <header class="plate-head">
-          <div class="plate-id"><span class="caps">Plate II</span><span class="rule"></span><span class="caps dim">Field</span></div>
-          <h1 class="plate-title">Kinship of specimens</h1>
+        <header class="pane-head">
+          <span class="brand">Collection</span>
+          <span class="dim num" id="field-count">Empty</span>
         </header>
-
-        <div class="plate-meta top-right">
-          <div class="meta-row"><span class="num" id="field-count">0 specimens</span></div>
-        </div>
 
         <aside class="inspector" id="inspector" hidden></aside>
 
-        <footer class="plate-foot">
-          <div></div>
-          <div class="field-actions">
-            <button class="btn ghost small" id="btn-seed"><span>Seed specimens</span></button>
-            <button class="btn ghost small" id="btn-clear"><span>Clear field</span></button>
+        <footer class="pane-foot">
+          <span></span>
+          <div class="actions-row">
+            <button class="btn ghost" id="btn-seed">Add samples</button>
+            <button class="btn ghost" id="btn-clear">Clear</button>
           </div>
         </footer>
-        <div class="empty" id="field-empty"><p class="caps dim">The field is empty</p><p class="fine dim">Accepted specimens settle here and find their kin.</p></div>
+
+        <div class="empty" id="field-empty"><p>Forms you keep will gather here.</p></div>
       </section>
     </main>
     <script type="module" src="/src/main.ts"></script>

@@ -18,7 +18,7 @@ export class Chrome {
     const list = $('tools');
     for (const t of TOOLS) {
       const li = document.createElement('li');
-      li.innerHTML = `<span class="dot"></span><svg class="glyph" viewBox="0 0 22 16">${GLYPHS[t.kind]}</svg><span>${t.name}</span><span class="how" data-hand="${t.hand}" data-key="${t.key}"></span>`;
+      li.innerHTML = `<svg class="glyph" viewBox="0 0 22 16">${GLYPHS[t.kind]}</svg><span>${t.name}</span><span class="how" data-hand="${t.hand}" data-key="${t.key}"></span>`;
       li.dataset.tool = t.kind;
       list.appendChild(li);
       this.toolEls.set(t.kind, li);
@@ -45,7 +45,7 @@ export class Chrome {
   }
 
   setSpecimenNumber(n: number) {
-    $('specimen-no').textContent = `Specimen ${String(n).padStart(3, '0')}`;
+    $('specimen-no').textContent = `Form ${n}`;
   }
 
   setAcceptProgress(p: number) {

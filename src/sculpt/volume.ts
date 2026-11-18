@@ -107,15 +107,20 @@ export class Volume {
 
   // ───────────── Sampling ─────────────
 
-  /** Trilinear sample at object-space point. */
+  /** Trilinear sample of the distance field at an object-space point. */
   sample(x: number, y: number, z: number): number {
+    return this.sampleOf(this.sdf, x, y, z);
+  }
+  sampleComp(x: number, y: number, z: number): number {
+    return this.sampleOf(this.comp, x, y, z);
+  }
+  private sampleOf(s: Float32Array, x: number, y: number, z: number): number {
     const { n } = this;
     const fx = Math.min(Math.max((x + 1) / this.h, 0), n - 1.001);
     const fy = Math.min(Math.max((y + 1) / this.h, 0), n - 1.001);
     const fz = Math.min(Math.max((z + 1) / this.h, 0), n - 1.001);
     const i = fx | 0, j = fy | 0, k = fz | 0;
     const u = fx - i, v = fy - j, w = fz - k;
-    const s = this.sdf;
     const p = this.idx(i, j, k);
     const nn = n * n;
     const c00 = s[p] * (1 - u) + s[p + 1] * u;
