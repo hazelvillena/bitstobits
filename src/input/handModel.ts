@@ -48,7 +48,7 @@ export class HandFilter {
   }
 }
 
-export type Pose = 'open' | 'fist' | 'pinch' | 'point' | 'two' | 'none';
+export type Pose = 'open' | 'fist' | 'pinch' | 'point' | 'two' | 'thumb' | 'none';
 
 export interface HandFrame {
   lm: Float32Array; // 21 × xyz, normalized image coords (x not mirrored)
@@ -77,23 +77,44 @@ export function palmSpan(lm: Float32Array, aspect: number) {
   return (dist(lm, 0, 9, aspect) + dist(lm, 5, 17, aspect) * 1.25) / 2;
 }
 
-function extended(lm: Float32Array, tip: number, pip: number, aspect: number) {
-  return dist(lm, tip, 0, aspect) > dist(lm, pip, 0, aspect) * 1.12;
+/**
+ * Total bend of a finger chain in radians, measured in 3D. Joint angles do
+ * not depend on how the hand is turned to the camera, unlike tip distances.
+ */
+function bend(lm: Float32Array, j: number[], aspect: number) {
+  let total = 0;
+  for (let k = 0; k < j.length - 2; k++) {
+    const a = P(lm, j[k], aspect), b = P(lm, j[k + 1], aspect), c = P(lm, j[k + 2], aspect);
+    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    const v = [c[0] - b[0], c[1] - b[1], c[2] - b[2]];
+    const d = (u[0] * v[0] + u[1] * v[1] + u[2] * v[2]) / (Math.hypot(...u) * Math.hypot(...v) || 1);
+    total += Math.acos(Math.max(-1, Math.min(1, d)));
+  }
+  return total;
 }
 
 export function readPose(lm: Float32Array, cal: Calibration): { pose: Pose; span: number; pinchRatio: number } {
   const a = cal.aspect;
   const span = palmSpan(lm, a);
   const pinchRatio = dist(lm, 4, 8, a) / span;
-  const idx = extended(lm, 8, 6, a);
-  const mid = extended(lm, 12, 10, a);
-  const ring = extended(lm, 16, 14, a);
-  const lit = extended(lm, 20, 18, a);
+  // Include the knuckle: wrist → MCP → PIP → DIP → TIP.
+  const ext = (f: number[]) => bend(lm, [0, ...f], a) < 1.25;
+  const curled = (f: number[]) => bend(lm, [0, ...f], a) > 1.7;
+  const idx = ext([5, 6, 7, 8]);
+  const mid = ext([9, 10, 11, 12]);
+  const ring = ext([13, 14, 15, 16]);
+  const lit = ext([17, 18, 19, 20]);
+  const othersCurled = curled([9, 10, 11, 12]) && curled([13, 14, 15, 16]) && curled([17, 18, 19, 20]);
+
+  const thumbOut = dist(lm, 4, 5, a) / span > 0.55 && bend(lm, [1, 2, 3, 4], a) < 0.9;
+  const thumbUp = thumbOut && lm[4 * 3 + 1] < lm[3 * 3 + 1] && lm[3 * 3 + 1] < lm[5 * 3 + 1];
+
   let pose: Pose = 'none';
-  if (pinchRatio < cal.pinchOn && !ring) pose = 'pinch';
+  if (pinchRatio < cal.pinchOn) pose = 'pinch';
+  else if (thumbUp && curled([5, 6, 7, 8]) && othersCurled) pose = 'thumb';
   else if (idx && mid && ring && lit) pose = 'open';
   else if (idx && mid && !ring && !lit) pose = 'two';
-  else if (idx && !mid && !ring && !lit) pose = 'point';
+  else if (idx && othersCurled) pose = 'point';
   else if (!idx && !mid && !ring && !lit) pose = 'fist';
   return { pose, span, pinchRatio };
 }

@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import type { Atelier } from '../render/atelier';
-import type { Sculptor, ToolKind } from '../sculpt/sculptor';
+import { TOOLS, type Sculptor, type ToolKind } from '../sculpt/sculptor';
 import type { HandFrame } from './handModel';
 import type { HandTracker } from './handTracker';
 import type { PaneMapping } from '../ui/handOverlay';
@@ -20,9 +20,14 @@ const POSE_TOOL: Record<string, ToolKind | undefined> = {
 export class HandInput {
   enabled = false;
   acceptHold = 0;
-  activity = new Map<HandFrame, { tool: ToolKind; engaged: boolean }>();
+  /** Seconds to hold a thumbs-up before the form is kept. */
+  readonly acceptTime = 1.6;
+  activity = new Map<HandFrame, { tool: string; engaged: boolean; label: string }>();
   private lastPalm = new Map<boolean, { x: number; y: number }>();
   private prevTip = new Map<boolean, Vector3>();
+  // A short latch: when a pose blurs mid-gesture, keep the last tool briefly.
+  private latch = new Map<boolean, { tool: ToolKind; until: number }>();
+  private now = 0;
 
   constructor(
     private tracker: HandTracker,
@@ -54,15 +59,16 @@ export class HandInput {
     const tips: { pos: Vector3; strength: number }[] = [];
     let primary: ToolKind | null = null;
 
-    // Keep: both palms open and held away from the form.
-    const bothOpen = hands.length === 2 && hands.every((h) => h.pose === 'open');
-    if (bothOpen) {
-      const away = hands.every((h) => this.sculptor.distanceAt(this.mid(h, 0, 9, new Vector3())) > 0.2);
-      this.acceptHold = away ? this.acceptHold + dt : 0;
-    } else this.acceptHold = Math.max(0, this.acceptHold - dt * 3);
+    this.now += dt;
+    // Keep: a deliberate thumbs-up, held. Any other pose resets it.
+    const thumbs = hands.some((h) => h.pose === 'thumb');
+    this.acceptHold = thumbs ? this.acceptHold + dt : 0;
 
     for (const h of hands) {
-      const tool = POSE_TOOL[h.pose];
+      let tool = POSE_TOOL[h.pose];
+      const l = this.latch.get(h.right);
+      if (tool) this.latch.set(h.right, { tool, until: this.now + 0.3 });
+      else if (h.pose === 'none' && l && l.until > this.now) tool = l.tool;
       let engaged = false;
       const key = h.right;
 
@@ -70,7 +76,8 @@ export class HandInput {
       const idx = this.world(h, 8, new Vector3());
       tips.push({ pos: idx, strength: 0.4 });
 
-      if (!tool || bothOpen) {
+      if (!tool) {
+        if (h.pose === 'thumb') this.activity.set(h, { tool: 'keep', engaged: true, label: 'Keep' });
         this.sculptor.pull(String(key), idx, false);
         this.prevTip.delete(key);
         this.lastPalm.delete(key);
@@ -111,7 +118,7 @@ export class HandInput {
       if (tool !== 'turn') this.lastPalm.delete(key);
       if (tool !== 'drill') this.prevTip.delete(key);
 
-      this.activity.set(h, { tool, engaged });
+      this.activity.set(h, { tool, engaged, label: TOOLS.find((t) => t.kind === tool)!.name });
       if (!primary || engaged) primary = tool;
     }
     return { tips, tool: primary };

@@ -53,7 +53,7 @@ export class HandOverlay {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
-  draw(hands: HandFrame[], mode: OverlayMode, dt: number, mmPerUnit: number, active?: Map<HandFrame, { tool: string; engaged: boolean }>) {
+  draw(hands: HandFrame[], mode: OverlayMode, dt: number, mmPerUnit: number, active?: Map<HandFrame, { tool: string; engaged: boolean; label: string }>) {
     this.t += dt;
     const c = this.ctx;
     this.clear();
@@ -61,7 +61,7 @@ export class HandOverlay {
     hands.forEach((h, hi) => this.drawHand(h, mode, hi === 0, mmPerUnit, active?.get(h)));
   }
 
-  private drawHand(h: HandFrame, mode: OverlayMode, primary: boolean, mmPerUnit: number, act?: { tool: string; engaged: boolean }) {
+  private drawHand(h: HandFrame, mode: OverlayMode, primary: boolean, mmPerUnit: number, act?: { tool: string; engaged: boolean; label: string }) {
     const c = this.ctx;
     const m = this.map;
     const X = (i: number) => m.x(h.lm[i * 3]);
@@ -101,6 +101,17 @@ export class HandOverlay {
       c.lineWidth = 1;
       c.strokeStyle = `rgba(${INK}, ${cal ? 0.85 : 0.55})`;
       c.stroke();
+    }
+
+    // What the hand is doing right now, in plain words beside the wrist.
+    if (act && mode === 'sculpt') {
+      c.save();
+      c.font = '500 13px "Instrument Sans", sans-serif';
+      c.textBaseline = 'middle';
+      c.textAlign = 'center';
+      c.fillStyle = act.engaged ? `rgba(${INK}, 0.92)` : `rgba(${INK}, 0.5)`;
+      c.fillText(act.label, X(0), Y(0) + 26);
+      c.restore();
     }
 
     // Engaged fingertips glow in signal.

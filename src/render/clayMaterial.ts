@@ -84,10 +84,10 @@ export function createClayMaterial(vol: Volume) {
         vec2 tb = box(ro, rd);
         float t = max(tb.x, 0.0);
         bool hit = false;
-        for (int i = 0; i < 110; i++) {
+        for (int i = 0; i < 140; i++) {
           float d = map(ro + rd * t);
           if (d < 0.0012) { hit = true; break; }
-          t += max(d * 0.92, 0.0025);
+          t += max(d * 0.7, 0.002);
           if (t > tb.y) break;
         }
         if (!hit) discard;

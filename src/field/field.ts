@@ -232,6 +232,7 @@ export class Field {
         const l = Math.max(d.length(), 0.3);
         const minD = a.radius + b.radius + 0.5;
         if (l < minD * 2.2) f.addScaledVector(d.normalize(), (1.4 * (minD * 2.2 - l)) / l);
+        if (l < minD) f.addScaledVector(d.normalize(), (minD - l) * 14);
       }
       // Soft walls inside the visible frame.
       const mx = hw - a.radius - 0.4, my = hh - a.radius - 0.7;

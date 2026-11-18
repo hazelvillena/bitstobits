@@ -42,39 +42,45 @@ export class Sculptor {
     const depth = Math.min(0.06, 0.9 * dt + 0.02);
     const from = this.b.copy(tip).addScaledVector(this.dir, -0.05);
     const to = tip.clone().addScaledVector(this.dir, depth);
-    this.vol.capsule(from, to, radius, radius * 0.92, 0.025, -1, 0.35 * dt * 6);
+    this.vol.capsule(from, to, radius, radius * 0.92, 0.05, -1, 0.35 * dt * 6);
     this.atelier.touch();
     return true;
   }
 
-  /** Begin/continue drawing matter out. Returns true while anchored. */
+  /**
+   * Pull: pinch the surface and drag it like clay. The grabbed point follows
+   * the hand with a little weight; matter around it comes along and thins
+   * into a neck, so long pulls become tendrils that stay attached.
+   */
   pull(id: string, pointWorld: Vector3, active: boolean) {
     const p = this.local(pointWorld, new Vector3());
-    const prev = this.pullPrev.get(id);
+    const anchor = this.pullPrev.get(id);
     if (!active) {
-      this.pullPrev.delete(id);
+      if (anchor) this.pullPrev.delete(id);
       return false;
     }
-    if (!prev) {
-      // Anchor only when starting on (or just above) the surface.
-      if (this.vol.sample(p.x, p.y, p.z) > 0.1) return false;
+    if (!anchor) {
+      // One grab at a time; start only on (or just above) the surface.
+      if (this.pullPrev.size > 0) return false;
+      if (this.vol.sample(p.x, p.y, p.z) > 0.08) return false;
       this.pullPrev.set(id, p.clone());
       return true;
     }
-    // Catch up with fast motion in short segments.
-    for (let i = 0; i < 10; i++) {
-      const dist = prev.distanceTo(p);
-      if (dist < 0.012) break;
-      const end = prev.clone().lerp(p, Math.min(dist, 0.07) / dist);
-      // Thinner as it travels outward from the body.
-      const outward = Math.max(0, this.vol.sample(end.x, end.y, end.z));
-      const r = Math.max(0.045, 0.1 - outward * 0.25);
-      this.vol.capsule(prev, end, r * 1.05, r, 0.07, 1, -0.06);
-      prev.copy(end);
+    const target = anchor.clone().lerp(p, 0.3);
+    const move = target.sub(anchor);
+    const len = move.length();
+    if (len < 1e-4) return true;
+    const R = this.grabRadius;
+    const steps = Math.min(8, Math.ceil(len / (R * 0.3)));
+    move.divideScalar(steps);
+    for (let i = 0; i < steps; i++) {
+      this.vol.grabStep(anchor, move, R);
+      anchor.add(move);
     }
     this.atelier.touch();
     return true;
   }
+  grabRadius = 0.2;
 
   press(centerWorld: Vector3, normalWorld: Vector3, dt: number, radius = 0.24) {
     const c = this.local(centerWorld, this.a);

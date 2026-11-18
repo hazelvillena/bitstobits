@@ -75,7 +75,7 @@ export class Calibration {
     if (h) {
       const r = readPose(h.lm, { ...DEFAULT_CAL, aspect: asp });
       if (step.pose === 'open') ok = r.pose === 'open';
-      if (step.pose === 'fist') ok = r.pose === 'fist';
+      if (step.pose === 'fist') ok = r.pose === 'fist' || r.pose === 'thumb';
       if (step.pose === 'pinch') ok = r.pinchRatio < 0.3;
       if (ok) {
         if (step.pose === 'open') {
@@ -119,7 +119,7 @@ export class Calibration {
       <div class="row"><span>Pinch at</span><b>${cal.pinchOn.toFixed(2)}</b></div>`;
     sig.hidden = false;
     $('calib-title').textContent = 'Calibrated';
-    $('calib-sub').textContent = 'Reach toward the form to begin.';
+    $('calib-sub').textContent = 'Reach toward the form to begin. A held thumbs up keeps it.';
     this.active = false;
     setTimeout(() => {
       $('calibration').hidden = true;

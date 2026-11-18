@@ -276,6 +276,53 @@ export class Volume {
     }
   }
 
+  // ───────────── Grab (clay pull) ─────────────
+  private snapSdf: Float32Array | null = null;
+  private snapComp: Float32Array | null = null;
+
+  /**
+   * Drag matter like clay by one small step: points near `anchor` are carried
+   * by `delta` with a smooth falloff of radius `R`. Callers split large moves
+   * into steps under ~R/3 so the warp never folds, and move the anchor with
+   * the matter, so pulled material stays attached and thins into a neck.
+   */
+  grabStep(anchor: Vector3, delta: Vector3, R: number) {
+    if (!this.snapSdf) {
+      this.snapSdf = new Float32Array(this.sdf.length);
+      this.snapComp = new Float32Array(this.comp.length);
+    }
+    const snap = this.snapSdf, snapC = this.snapComp!;
+    const reach = R + delta.length() + this.h;
+    // Freeze just the neighbourhood we read from.
+    this.region(anchor.x, anchor.y, anchor.z, reach + this.h * 2, (p) => {
+      snap[p] = this.sdf[p];
+      snapC[p] = this.comp[p];
+    });
+    const R2 = R * R;
+    const L = Volume.LIMIT;
+    this.region(anchor.x, anchor.y, anchor.z, reach, (p, x, y, z) => {
+      // Fixed-point inverse: find q with q + delta·w(q) = p.
+      let qx = x, qy = y, qz = z, w = 0;
+      for (let it = 0; it < 3; it++) {
+        const dx = qx - anchor.x, dy = qy - anchor.y, dz = qz - anchor.z;
+        const d2 = dx * dx + dy * dy + dz * dz;
+        const t = d2 < R2 ? 1 - d2 / R2 : 0;
+        w = t * t;
+        qx = x - delta.x * w;
+        qy = y - delta.y * w;
+        qz = z - delta.z * w;
+      }
+      if (w === 0) return;
+      const d = this.sampleOf(snap, qx, qy, qz);
+      const box = Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) - L;
+      this.sdf[p] = Math.max(d, box);
+      const c = this.sampleOf(snapC, qx, qy, qz);
+      this.comp[p] = c - c * 0.06 * w; // stretched matter eases toward "stretched"
+      this.heat[p] = Math.max(this.heat[p], w * 0.8);
+      this.writeVoxel(p);
+    });
+  }
+
   /** Push pending changes to the GPU. Call once per frame. */
   upload() {
     if (this.sdfDirty) {

@@ -42,6 +42,7 @@ function begin(kind: 'hands' | 'pointer') {
   $('intro').classList.add('gone');
   input = kind;
   chrome.setInputMode(kind);
+  if (kind === 'hands') $('btn-accept').textContent = 'Keep (thumbs up)';
   if (kind === 'pointer') {
     pointer.enabled = true;
     mode = 'sculpt';
@@ -200,8 +201,8 @@ function frame(now: number) {
       tips = tips.concat(r.tips);
       if (!pointer.enabled) chrome.setActive(r.tool);
       overlay.draw(tracker.hands, 'sculpt', dt, tracker.cal.mmPerUnit, hands.activity);
-      chrome.setAcceptProgress(Math.min(1, hands.acceptHold / 1.5));
-      if (hands.acceptHold >= 1.5) {
+      chrome.setAcceptProgress(Math.min(1, hands.acceptHold / hands.acceptTime));
+      if (hands.acceptHold >= hands.acceptTime) {
         chrome.setAcceptProgress(0);
         accept();
       }

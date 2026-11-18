@@ -2,6 +2,18 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-18 (later)
+
+**Pull is now a clay grab.** It used to stamp new material along the path, which felt like a harsh eraser. Now pinching grabs the surface and drags it with a smooth falloff. The move is split into small steps and the grab point travels with the matter, so long pulls become tapered tendrils that stay attached. The grabbed point eases toward the hand, which gives it some weight.
+
+**Keep is a held thumbs up.** Two open palms is a resting pose, so forms were being kept by accident. A thumbs up is deliberate, and any other pose resets the timer.
+
+**More reliable pose reading.** Fingers are judged by how much they bend in 3D, not by tip distance. Bend doesn't change with hand orientation, so switching between tools is more dependable. A 0.3 s latch holds the last tool when a pose blurs mid-gesture.
+
+**Live feedback.** The active tool's name sits under the wrist (dim when hovering, solid when touching), so it's always clear which tool is on.
+
+**Softer edges.** Pierce has a wider blend so holes have rounded rims. The raymarcher takes shorter steps so warped areas render cleanly.
+
 ## 2026-11-18
 
 **UI direction: clean and quiet.** Feedback was to remove clutter, tags and anything that looks like generic AI output. Removed registration marks, the north arrow, the scale bar, the fps readout, boxed labels and all-caps text. Dropped the serif display face and use Instrument Sans only. Copy is plain and short ("Keep this form", "Start over", "Collection").
