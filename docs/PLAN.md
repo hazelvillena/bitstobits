@@ -13,16 +13,18 @@ Status: working prototype. See [DECISIONS.md](DECISIONS.md) for what changed and
 4. **Keep**: hold a thumbs up for 1.6 s (or press "Keep this form"). The form dissolves toward the collection.
 5. **Collection**: forms arrange by kinship. Close relatives grow thin ligaments between their nearest surfaces. Hover a form to see its traits, its relatives and the shared trait behind each attachment.
 
-## Gestures
+## Tools and gestures
 
-| Hand | Tool | Mouse key |
+Pick a tool with keys 1 to 5 or by clicking it. Hands never choose the tool; they only aim and act.
+
+| Key | Tool | With a hand |
 |---|---|---|
-| Point | Pierce: drills along the fingertip | 1 |
-| Pinch | Pull: grabs the surface and drags it like clay | 2 |
-| Open palm | Press: flattens and densifies | 3 |
-| Two fingers | Smooth | 4 |
-| Fist | Rotate | 5 (or right drag) |
-| Thumbs up, held | Keep | Enter |
+| 1 | Pierce | Touch the form with your index fingertip |
+| 2 | Pull | Pinch on the surface and drag |
+| 3 | Press | Touch with your index fingertip |
+| 4 | Smooth | Touch with your index fingertip |
+| 5 | Rotate | Pinch anywhere and drag (mouse: right drag) |
+| Enter | Keep | Hold a thumbs up |
 
 Other keys: `N` start over, `C` recalibrate. `?layout=rows` stacks the two panes for a portrait screen.
 

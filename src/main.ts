@@ -75,20 +75,17 @@ $('btn-calibrate').addEventListener('click', async () => {
 calibration.onDone = () => {
   mode = 'sculpt';
   hands.enabled = true;
+  pointer.setTool('pull');
 };
+// Hands act with whichever tool is selected; they never pick it themselves.
+hands.tool = () => pointer.tool;
 
 pointer.onToolChange = (t) => chrome.setActive(t);
-chrome.onToolClick((t) => {
-  if (!pointer.enabled && input === 'hands') pointer.enabled = true;
-  pointer.setTool(t);
-});
+chrome.onToolClick((t) => pointer.setTool(t));
 
 const KEYS: Record<string, ToolKind> = { '1': 'drill', '2': 'pull', '3': 'press', '4': 'smooth', '5': 'turn' };
 window.addEventListener('keydown', (e) => {
-  if (KEYS[e.key] && mode === 'sculpt') {
-    pointer.enabled = true;
-    pointer.setTool(KEYS[e.key]);
-  }
+  if (KEYS[e.key] && mode === 'sculpt') pointer.setTool(KEYS[e.key]);
   if (e.key === 'Enter' && mode === 'sculpt') accept();
   if ((e.key === 'n' || e.key === 'N') && mode === 'sculpt') startOver();
   if ((e.key === 'c' || e.key === 'C') && input === 'hands' && mode === 'sculpt') {
@@ -197,9 +194,7 @@ function frame(now: number) {
       calibration.update(dt);
       overlay.draw(tracker.hands, 'calibrate', dt, tracker.cal.mmPerUnit);
     } else {
-      const r = hands.update(dt);
-      tips = tips.concat(r.tips);
-      if (!pointer.enabled) chrome.setActive(r.tool);
+      tips = tips.concat(hands.update(dt).tips);
       overlay.draw(tracker.hands, 'sculpt', dt, tracker.cal.mmPerUnit, hands.activity);
       chrome.setAcceptProgress(Math.min(1, hands.acceptHold / hands.acceptTime));
       if (hands.acceptHold >= hands.acceptTime) {

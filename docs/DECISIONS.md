@@ -2,6 +2,10 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-18 (tool selection)
+
+**Tools are chosen explicitly, not guessed from hand shape.** Reading the tool from the hand's pose was unreliable: a relaxed, half-curled hand read as a fist, which meant Rotate, so the form kept spinning. Now the person selects a tool with keys 1 to 5 or the tool list. Hands only aim and act. Pierce, Press and Smooth work where the index fingertip touches the form. Pull and Rotate work only while pinching, which acts as a clutch with hysteresis so a grab doesn't drop when fingers flutter. Pose reading is now used only for the thumbs up (keep) and calibration.
+
 ## 2026-11-18 (later)
 
 **Pull is now a clay grab.** It used to stamp new material along the path, which felt like a harsh eraser. Now pinching grabs the surface and drags it with a smooth falloff. The move is split into small steps and the grab point travels with the matter, so long pulls become tapered tendrils that stay attached. The grabbed point eases toward the hand, which gives it some weight.

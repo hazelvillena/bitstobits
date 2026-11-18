@@ -116,7 +116,7 @@ export class HandOverlay {
 
     // Engaged fingertips glow in signal.
     if (act) {
-      const live = act.tool === 'drill' ? [8] : act.tool === 'pull' ? [4, 8] : act.tool === 'smooth' ? [8, 12] : act.tool === 'press' ? [0, 5, 9, 13, 17] : [];
+      const live = act.tool === 'pull' || act.tool === 'turn' ? [4, 8] : act.tool === 'keep' ? [4] : [8];
       for (const i of live) {
         c.beginPath();
         c.arc(X(i), Y(i), act.engaged ? 5 : 4, 0, Math.PI * 2);

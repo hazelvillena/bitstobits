@@ -4,11 +4,11 @@ import type { Atelier } from '../render/atelier';
 export type ToolKind = 'drill' | 'pull' | 'press' | 'smooth' | 'turn';
 
 export const TOOLS: { kind: ToolKind; name: string; hand: string; key: string }[] = [
-  { kind: 'drill', name: 'Pierce', hand: 'Point', key: '1' },
-  { kind: 'pull', name: 'Pull', hand: 'Pinch', key: '2' },
-  { kind: 'press', name: 'Press', hand: 'Open palm', key: '3' },
-  { kind: 'smooth', name: 'Smooth', hand: 'Two fingers', key: '4' },
-  { kind: 'turn', name: 'Rotate', hand: 'Fist', key: '5' },
+  { kind: 'drill', name: 'Pierce', hand: 'touch', key: '1' },
+  { kind: 'pull', name: 'Pull', hand: 'pinch and drag', key: '2' },
+  { kind: 'press', name: 'Press', hand: 'touch', key: '3' },
+  { kind: 'smooth', name: 'Smooth', hand: 'touch', key: '4' },
+  { kind: 'turn', name: 'Rotate', hand: 'pinch and drag', key: '5' },
 ];
 
 /**

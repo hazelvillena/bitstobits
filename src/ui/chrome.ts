@@ -36,7 +36,7 @@ export class Chrome {
   setInputMode(mode: 'hands' | 'pointer') {
     for (const li of this.toolEls.values()) {
       const how = li.querySelector<HTMLElement>('.how')!;
-      how.textContent = mode === 'hands' ? how.dataset.hand! : how.dataset.key!;
+      how.textContent = mode === 'hands' ? `${how.dataset.key}  ${how.dataset.hand}` : how.dataset.key!;
     }
   }
 
