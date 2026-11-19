@@ -215,3 +215,21 @@ function frame(now: number) {
 }
 requestAnimationFrame(frame);
 updateCount();
+
+// Dev-only hook: lets tests drive the hand pipeline with synthetic landmarks.
+if (import.meta.env.DEV) {
+  Object.assign(window, {
+    b2b: {
+      tracker, hands, atelier, overlay, pointer,
+      useHands() {
+        $('intro').classList.add('gone');
+        input = 'hands';
+        mode = 'sculpt';
+        tracker.ready = true;
+        hands.enabled = true;
+        overlay.resize(tracker.cal.aspect);
+        chrome.setInputMode('hands');
+      },
+    },
+  });
+}

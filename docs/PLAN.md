@@ -15,15 +15,15 @@ Status: working prototype. See [DECISIONS.md](DECISIONS.md) for what changed and
 
 ## Tools and gestures
 
-Pick a tool with keys 1 to 5 or by clicking it. Hands never choose the tool; they only aim and act.
+Pick a tool with keys 1 to 5 or by clicking it. Then **aim and pinch**: your index fingertip points at the form like a mouse cursor, and pinching thumb and index starts the tool exactly where you aimed. Release to stop.
 
-| Key | Tool | With a hand |
+| Key | Tool | While pinched |
 |---|---|---|
-| 1 | Pierce | Touch the form with your index fingertip |
-| 2 | Pull | Pinch on the surface and drag |
-| 3 | Press | Touch with your index fingertip |
-| 4 | Smooth | Touch with your index fingertip |
-| 5 | Rotate | Pinch anywhere and drag (mouse: right drag) |
+| 1 | Pierce | Hold to drill deeper; move to carve a groove |
+| 2 | Pull | Drag to draw the surface out like clay |
+| 3 | Press | Hold to sink in |
+| 4 | Smooth | Move across the surface |
+| 5 | Rotate | Drag anywhere (mouse: right drag) |
 | Enter | Keep | |
 
 Other keys: `N` start over, `C` recalibrate. Drag the divider to resize the panes (double-click for an even split). `?layout=rows` stacks them for a portrait screen.
@@ -39,7 +39,7 @@ Other keys: `N` start over, `C` recalibrate. Drag the divider to resize the pane
 - Line density follows compression, so pressed areas draw tighter lines.
 - Heat shows recent touch.
 
-**Hands.** MediaPipe Hand Landmarker runs in a module Web Worker on the GPU delegate. Frames are sent only after the previous result returns, so tracking can never queue up behind rendering. A One-Euro filter smooths each landmark. Depth comes from palm size relative to the calibrated size, plus each landmark's relative depth.
+**Hands.** MediaPipe Hand Landmarker runs in a module Web Worker on the GPU delegate. Frames are sent only after the previous result returns, so tracking can never queue up behind rendering. A One-Euro filter smooths each landmark. Depth is never used for interaction: the fingertip's screen position is raycast onto the first visible surface, and a pinch acts there. While pinched, hand motion moves the tool in the screen plane.
 
 **Keeping a form.** Surface nets turn the field into a mesh. Seven traits, each 0 to 1:
 - openings (genus, from the Euler characteristic)

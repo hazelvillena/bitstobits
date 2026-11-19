@@ -129,12 +129,30 @@ export class Atelier {
     dir.copy(ndc.unproject(this.camera)).sub(origin).normalize();
   }
 
-  /** World point on the view ray through a canvas pixel, at world depth z. */
-  pointAtDepth(px: number, py: number, z: number, out: Vector3) {
+  /**
+   * Cast from a canvas pixel to the first visible surface of the form.
+   * Returns the world hit, the view direction and the distance along the ray,
+   * or null when the pixel misses the form. Used by both mouse and hands, so
+   * a tool always lands on what the person sees.
+   */
+  castSurface(px: number, py: number): { point: Vector3; dir: Vector3; dist: number } | null {
     const o = new Vector3(), d = new Vector3();
     this.ray(px, py, o, d);
-    const t = (z - o.z) / (d.z || -1e-6);
-    return out.copy(o).addScaledVector(d, t);
+    const lo = this.toLocal(o.clone(), new Vector3());
+    const ld = this.toLocal(o.clone().add(d), new Vector3()).sub(lo);
+    const scale = ld.length();
+    ld.normalize();
+    const t = this.volume.raycast(lo, ld);
+    if (t < 0) return null;
+    const point = this.object.localToWorld(lo.addScaledVector(ld, t));
+    return { point, dir: d, dist: t / scale };
+  }
+
+  /** World point at a given distance along the view ray through a pixel. */
+  pointOnRay(px: number, py: number, dist: number, out: Vector3) {
+    const o = new Vector3(), d = new Vector3();
+    this.ray(px, py, o, d);
+    return out.copy(o).addScaledVector(d, dist);
   }
 
   project(world: Vector3) {

@@ -5,22 +5,45 @@ import type { HandFrame } from './handModel';
 import type { HandTracker } from './handTracker';
 import type { PaneMapping } from '../ui/handOverlay';
 
+export interface HandActivity {
+  tool: string;
+  label: string;
+  engaged: boolean;
+  /** 0 open … 1 fully pinched, for the closing ring. */
+  pinch: number;
+  /** Whether the aim currently lands on the form. */
+  onForm: boolean;
+}
+
+interface Grab {
+  tool: ToolKind;
+  /** Screen position of the pinch when it started, and the aim at that moment. */
+  startX: number;
+  startY: number;
+  aimX: number;
+  aimY: number;
+  /** Distance along the view ray to the grabbed surface (pull). */
+  depth: number;
+  lastX: number;
+  lastY: number;
+}
+
 /**
- * Turns tracked hands into sculpting with the tool the person selected
- * (keys 1 to 5 or the tool list). Hands never choose the tool; they only aim
- * and act:
- * - Pierce, Press, Smooth act where the index fingertip touches the form.
- * - Pull and Rotate act only while pinching, like a clutch.
- * Depth comes from the palm's apparent size against the calibrated size,
- * plus each landmark's relative depth.
+ * Aim, then pinch. The camera gives reliable side-to-side position but
+ * unreliable depth, so depth is never used:
+ * - Aim: the index fingertip's screen position casts onto the first visible
+ *   surface, exactly like the mouse. A tool can only ever land on what you see.
+ * - Act: pinching starts the selected tool at that surface point.
+ * - Move: while pinched, hand movement drives the tool in the screen plane.
  */
 export class HandInput {
   enabled = false;
   tool: () => ToolKind = () => 'pull';
-  activity = new Map<HandFrame, { tool: string; engaged: boolean; label: string }>();
-  private lastPinch = new Map<boolean, { x: number; y: number }>();
-  private prevTip = new Map<boolean, Vector3>();
+  activity = new Map<HandFrame, HandActivity>();
+
   private pinching = new Map<boolean, boolean>();
+  private grabs = new Map<boolean, Grab>();
+  private aim = new Map<boolean, { x: number; y: number }>();
 
   constructor(
     private tracker: HandTracker,
@@ -29,81 +52,114 @@ export class HandInput {
     private map: PaneMapping,
   ) {}
 
-  private world(h: HandFrame, i: number, out: Vector3) {
-    const r = h.span / this.tracker.cal.span;
-    // r = 1 at the calibrated distance; leaning in drives the hand into the scene.
-    const zPalm = 1.25 - (r - 1) * 3.4;
-    const z = zPalm + h.lm[i * 3 + 2] * 3.2;
-    return this.atelier.pointAtDepth(this.map.x(h.lm[i * 3]), this.map.y(h.lm[i * 3 + 1]), z, out);
-  }
-
-  private mid(h: HandFrame, a: number, b: number, out: Vector3) {
-    const t = new Vector3();
-    this.world(h, a, out);
-    this.world(h, b, t);
-    return out.add(t).multiplyScalar(0.5);
+  private screen(h: HandFrame, i: number) {
+    return { x: this.map.x(h.lm[i * 3]), y: this.map.y(h.lm[i * 3 + 1]) };
   }
 
   /** Pinch with hysteresis, so a grab doesn't drop when fingers flutter. */
-  private isPinching(h: HandFrame) {
+  private pinchState(h: HandFrame) {
     const on = this.tracker.cal.pinchOn;
+    const open = on / 0.28; // calibration sets pinchOn ≈ 0.28 × open spread
     const was = this.pinching.get(h.right) ?? false;
     const now = was ? h.pinchRatio < on * 1.45 : h.pinchRatio < on;
     this.pinching.set(h.right, now);
-    return now;
+    const amount = Math.min(1, Math.max(0, (open - h.pinchRatio) / (open - on)));
+    return { now, started: now && !was, amount };
   }
 
-  /** Per frame. Returns fingertip markers for the shader. */
+  /** Per frame. Returns surface markers for the shader. */
   update(dt: number): { tips: { pos: Vector3; strength: number }[] } {
     this.activity.clear();
     if (!this.enabled) return { tips: [] };
-    const hands = this.tracker.hands;
     const tips: { pos: Vector3; strength: number }[] = [];
-    const tool = this.tool();
-    const label = TOOLS.find((t) => t.kind === tool)!.name;
+    const selected = this.tool();
+    const seen = new Set<boolean>();
 
-    for (const h of hands) {
+    for (const h of this.tracker.hands) {
       const key = h.right;
-      const idx = this.world(h, 8, new Vector3());
-      const pinch = this.isPinching(h);
-      let engaged = false;
+      seen.add(key);
+      const pinch = this.pinchState(h);
+      const tip = this.screen(h, 8);
+      const mid = { x: (tip.x + this.screen(h, 4).x) / 2, y: (tip.y + this.screen(h, 4).y) / 2 };
 
-      if (tool === 'drill' || tool === 'press' || tool === 'smooth') {
-        tips.push({ pos: idx, strength: 0.9 });
-        if (tool === 'drill') {
-          const prev = this.prevTip.get(key);
-          const dir = new Vector3();
-          if (prev && prev.distanceTo(idx) > 0.004) dir.copy(idx).sub(prev).normalize();
-          else dir.set(0, 0, -1);
-          dir.z = Math.min(dir.z, -0.4); // piercing travels into the scene
-          dir.normalize();
-          engaged = this.sculptor.drill(idx, dir, dt);
-          this.prevTip.set(key, idx.clone());
-        } else if (tool === 'press') {
-          engaged = this.sculptor.press(idx, new Vector3(0, 0, -1), dt, 0.2);
-        } else {
-          engaged = this.sculptor.smooth(idx, dt);
+      // Aim with the index tip while open. Once pinching, the index moves
+      // toward the thumb, so freeze the aim and follow the pinch's motion.
+      if (!pinch.now) this.aim.set(key, tip);
+      const aim = this.aim.get(key) ?? tip;
+
+      let grab = this.grabs.get(key);
+      if (pinch.started) {
+        const hit = this.atelier.castSurface(aim.x, aim.y);
+        if (selected === 'turn' || hit) {
+          grab = {
+            tool: selected,
+            startX: mid.x, startY: mid.y,
+            aimX: aim.x, aimY: aim.y,
+            depth: hit?.dist ?? 0,
+            lastX: mid.x, lastY: mid.y,
+          };
+          this.grabs.set(key, grab);
+          if (selected === 'pull' && hit) this.sculptor.pull(String(key), hit.point, true);
         }
-      } else if (tool === 'pull') {
-        const p = this.mid(h, 4, 8, new Vector3());
-        tips.push({ pos: p, strength: pinch ? 1 : 0.6 });
-        engaged = this.sculptor.pull(String(key), p, pinch);
-      } else if (tool === 'turn') {
-        tips.push({ pos: idx, strength: 0.4 });
-        if (pinch) {
-          const px = { x: this.map.x(h.lm[24]), y: this.map.y(h.lm[25]) };
-          const last = this.lastPinch.get(key);
-          if (last) this.atelier.rotateBy((px.x - last.x) * 0.004, (px.y - last.y) * 0.004);
-          this.lastPinch.set(key, px);
-          engaged = true;
-        } else this.lastPinch.delete(key);
       }
-      if (tool !== 'pull') this.sculptor.pull(String(key), idx, false);
-      if (tool !== 'drill') this.prevTip.delete(key);
-      if (tool !== 'turn') this.lastPinch.delete(key);
-      this.activity.set(h, { tool, engaged, label });
+      if (!pinch.now && grab) {
+        this.end(key, grab);
+        grab = undefined;
+      }
+
+      let engaged = false;
+      let onForm = false;
+      if (grab) {
+        // The pinch moves the aim; small hand motion is amplified a little.
+        const gain = 1.25;
+        const ax = grab.aimX + (mid.x - grab.startX) * gain;
+        const ay = grab.aimY + (mid.y - grab.startY) * gain;
+        if (grab.tool === 'turn') {
+          this.atelier.rotateBy((mid.x - grab.lastX) * 0.004, (mid.y - grab.lastY) * 0.004);
+          engaged = true;
+        } else if (grab.tool === 'pull') {
+          const p = this.atelier.pointOnRay(ax, ay, grab.depth, new Vector3());
+          engaged = this.sculptor.pull(String(key), p, true);
+          tips.push({ pos: p, strength: 1 });
+          onForm = true;
+        } else {
+          const hit = this.atelier.castSurface(ax, ay);
+          if (hit) {
+            onForm = true;
+            if (grab.tool === 'drill') engaged = this.sculptor.drill(hit.point, hit.dir, dt);
+            else if (grab.tool === 'press') engaged = this.sculptor.press(hit.point, hit.dir, dt, 0.2);
+            else engaged = this.sculptor.smooth(hit.point, dt);
+            tips.push({ pos: hit.point, strength: 1 });
+          }
+        }
+        grab.lastX = mid.x;
+        grab.lastY = mid.y;
+      } else {
+        // Hover: a quiet marker where the tool would land.
+        const hit = this.atelier.castSurface(aim.x, aim.y);
+        if (hit) {
+          onForm = true;
+          tips.push({ pos: hit.point, strength: 0.35 + 0.5 * pinch.amount });
+        }
+      }
+
+      this.activity.set(h, {
+        tool: grab?.tool ?? selected,
+        label: TOOLS.find((t) => t.kind === (grab?.tool ?? selected))!.name,
+        engaged,
+        pinch: pinch.amount,
+        onForm,
+      });
     }
+
+    // Hands that left the frame release whatever they held.
+    for (const [key, grab] of this.grabs) if (!seen.has(key)) this.end(key, grab);
     return { tips };
   }
 
+  private end(key: boolean, grab: Grab) {
+    if (grab.tool === 'pull') this.sculptor.pull(String(key), new Vector3(), false);
+    this.grabs.delete(key);
+    this.pinching.delete(key);
+  }
 }

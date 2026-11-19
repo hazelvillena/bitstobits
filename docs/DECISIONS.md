@@ -2,6 +2,10 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-18 (aim and pinch)
+
+**Hands aim like a mouse and pinch to act; depth is no longer used.** Inspection showed why touches landed in the wrong place. Depth was estimated from the palm's apparent size, which changes when the hand tilts or the fingers spread. On top of that came MediaPipe's per-landmark z, a learned depth relative to the wrist, not a measured distance. Small errors moved the fingertip through the form, and tools fired wherever the tip ended up, including the hidden back. Now the index fingertip's screen position is raycast onto the first visible surface (the same path as the mouse), a pinch starts the selected tool at that point, and pinch motion drives it in the screen plane with a little gain. This follows the target-then-pinch model of visionOS indirect input. Feedback: a quiet marker on the surface where the tool would land, a ring between thumb and index that closes as you pinch, and a signal dot when the tool is acting.
+
 ## 2026-11-18 (simpler onboarding)
 
 **Calibration is a single step.** With tools on keys, the fist and pinch poses had no purpose. Calibration now measures one open hand; the pinch threshold is derived from that hand's own spread.

@@ -1,4 +1,5 @@
 import { BONES, FINGERS, TIPS, type HandFrame } from '../input/handModel';
+import type { HandActivity } from '../input/handInput';
 
 export type OverlayMode = 'calibrate' | 'sculpt';
 
@@ -53,7 +54,7 @@ export class HandOverlay {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
-  draw(hands: HandFrame[], mode: OverlayMode, dt: number, mmPerUnit: number, active?: Map<HandFrame, { tool: string; engaged: boolean; label: string }>) {
+  draw(hands: HandFrame[], mode: OverlayMode, dt: number, mmPerUnit: number, active?: Map<HandFrame, HandActivity>) {
     this.t += dt;
     const c = this.ctx;
     this.clear();
@@ -61,7 +62,7 @@ export class HandOverlay {
     hands.forEach((h, hi) => this.drawHand(h, mode, hi === 0, mmPerUnit, active?.get(h)));
   }
 
-  private drawHand(h: HandFrame, mode: OverlayMode, primary: boolean, mmPerUnit: number, act?: { tool: string; engaged: boolean; label: string }) {
+  private drawHand(h: HandFrame, mode: OverlayMode, primary: boolean, mmPerUnit: number, act?: HandActivity) {
     const c = this.ctx;
     const m = this.map;
     const X = (i: number) => m.x(h.lm[i * 3]);
@@ -114,21 +115,32 @@ export class HandOverlay {
       c.restore();
     }
 
-    // Engaged fingertips glow in signal.
-    if (act) {
-      const live = act.tool === 'pull' || act.tool === 'turn' ? [4, 8] : [8];
-      for (const i of live) {
+    // Pinch ring: an open circle between thumb and index that closes as the
+    // fingers meet. Solid signal once the tool is acting.
+    if (act && mode === 'sculpt') {
+      const mx = (X(4) + X(8)) / 2, my = (Y(4) + Y(8)) / 2;
+      const r = 11;
+      c.lineWidth = 1.25;
+      c.beginPath();
+      c.arc(mx, my, r, 0, Math.PI * 2);
+      c.strokeStyle = `rgba(${INK}, ${act.onForm ? 0.28 : 0.14})`;
+      c.stroke();
+      if (act.pinch > 0.02) {
         c.beginPath();
-        c.arc(X(i), Y(i), act.engaged ? 5 : 4, 0, Math.PI * 2);
+        c.arc(mx, my, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * act.pinch);
+        c.strokeStyle = SIGNAL;
+        c.stroke();
+      }
+      if (act.engaged) {
+        c.beginPath();
+        c.arc(mx, my, 4.5, 0, Math.PI * 2);
         c.fillStyle = SIGNAL;
         c.fill();
-        if (act.engaged) {
-          const pulse = (this.t * 1.4) % 1;
-          c.beginPath();
-          c.arc(X(i), Y(i), 6 + pulse * 14, 0, Math.PI * 2);
-          c.strokeStyle = `rgba(169, 184, 46, ${0.6 * (1 - pulse)})`;
-          c.stroke();
-        }
+        const pulse = (this.t * 1.4) % 1;
+        c.beginPath();
+        c.arc(mx, my, r + 2 + pulse * 12, 0, Math.PI * 2);
+        c.strokeStyle = `rgba(169, 184, 46, ${0.5 * (1 - pulse)})`;
+        c.stroke();
       }
     }
 

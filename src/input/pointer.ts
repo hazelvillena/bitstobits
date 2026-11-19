@@ -19,7 +19,6 @@ export class PointerInput {
   private lastY = 0;
   private hover = false;
   private anchorDepth = 0;
-  private o = new Vector3();
   private d = new Vector3();
   private hit = new Vector3();
 
@@ -58,19 +57,13 @@ export class PointerInput {
     this.onToolChange(t);
   }
 
-  /** Cast into the object; writes world hit point. */
+  /** Cast onto the visible surface; writes the world hit point. */
   private cast(): boolean {
-    this.atelier.ray(this.x, this.y, this.o, this.d);
-    const lo = this.atelier.toLocal(this.o.clone(), new Vector3());
-    const far = this.atelier.toLocal(this.o.clone().addScaledVector(this.d, 1), new Vector3());
-    const ld = far.sub(lo);
-    const scale = ld.length();
-    ld.normalize();
-    const t = this.atelier.volume.raycast(lo, ld);
-    if (t < 0) return false;
-    this.hit.copy(lo.addScaledVector(ld, t));
-    this.atelier.object.localToWorld(this.hit);
-    this.anchorDepth = t / scale;
+    const hit = this.atelier.castSurface(this.x, this.y);
+    if (!hit) return false;
+    this.hit.copy(hit.point);
+    this.d.copy(hit.dir);
+    this.anchorDepth = hit.dist;
     return true;
   }
 
@@ -90,8 +83,7 @@ export class PointerInput {
     }
     if (this.down && this.tool === 'pull') {
       // Follow the pointer on the plane at the anchor's depth.
-      this.atelier.ray(this.x, this.y, this.o, this.d);
-      const p = this.o.clone().addScaledVector(this.d, this.anchorDepth);
+      const p = this.atelier.pointOnRay(this.x, this.y, this.anchorDepth, new Vector3());
       this.sculptor.pull('pointer', p, true);
       return [{ pos: p, strength: 1 }];
     }

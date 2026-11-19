@@ -106,7 +106,7 @@ export class Calibration {
 `;
     sig.hidden = false;
     $('calib-title').textContent = 'Calibrated';
-    $('calib-sub').textContent = 'Pick a tool with 1 to 5, then reach toward the form.';
+    $('calib-sub').textContent = 'Pick a tool with 1 to 5. Point at the form, pinch to act.';
     this.active = false;
     setTimeout(() => {
       $('calibration').hidden = true;
