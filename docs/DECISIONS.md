@@ -2,6 +2,16 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-18 (long extrusions, calmer links, fuller samples)
+
+**Long extrusions no longer break.** Rays grazing along a long, thin extrusion ran out of raymarch steps and were discarded, which read as a slice with a floating tip. The march now has more steps, slightly longer strides, and counts a ray that ends very close to the surface as a hit.
+
+**Connections are structured.** No sway; both ends align with the line between the two forms, the middle keeps a steady thickness, and the roots still flare softly from each surface. Calm and diagrammatic, still soft.
+
+**Fuller samples.** All four families, four forms each (16), slightly smaller so they fit.
+
+**Small UI.** The brush size is a field you can type into (5 to 28, Enter to apply; shortcuts are ignored while typing). Buttons and the toolbar have more padding. The collection shows only a count marker.
+
 ## 2026-11-18 (codes, welcome, grid, samples)
 
 **Codes instead of names.** Every kept form gets a six-digit code, shown as two groups (482 913). Older saves derive a stable code from their id.

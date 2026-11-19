@@ -114,9 +114,12 @@ hands.tool = () => pointer.tool;
 pointer.onToolChange = (t) => chrome.setActive(t);
 chrome.onToolClick((t) => pointer.setTool(t));
 chrome.onBrush = (dir) => sculptor.setBrush(dir > 0 ? sculptor.brush / 0.85 : sculptor.brush * 0.85);
+chrome.onBrushValue = (size) => sculptor.setBrush(size / 100);
 
 const KEYS: Record<string, ToolKind> = { '1': 'extrude', '2': 'spike', '3': 'drill', '4': 'smooth', '5': 'turn' };
 window.addEventListener('keydown', (e) => {
+  // Typing in a field never triggers shortcuts.
+  if ((e.target as HTMLElement).closest('input, textarea')) return;
   if (KEYS[e.key] && mode === 'sculpt') pointer.setTool(KEYS[e.key]);
   if (e.key === 'Enter' && mode === 'sculpt') accept();
   if (e.key === 'm' || e.key === 'M') {
@@ -158,16 +161,16 @@ async function accept() {
 function updateCount() {
   if (view === 'grid') renderGrid();
   const n = specimens.length;
-  $('field-count').textContent = n === 0 ? 'Empty' : n === 1 ? '1 form' : `${n} forms`;
+  $('field-count').textContent = String(n);
   $('field-empty').classList.toggle('gone', n > 0);
 }
 
-// Samples: three families, a few forms each, so the collection shows
+// Samples: every family, four forms each, so the collection fills with
 // varied groups that recognise each other.
 $('btn-seed').addEventListener('click', () => {
   const tmp = new Volume(128);
-  const families = (Object.keys(ARCHETYPES) as Archetype[]).sort(() => Math.random() - 0.5).slice(0, 3);
-  const queue: Archetype[] = families.flatMap((f) => [f, f, f]);
+  const families = (Object.keys(ARCHETYPES) as Archetype[]).sort(() => Math.random() - 0.5);
+  const queue: Archetype[] = families.flatMap((f) => [f, f, f, f]);
   const one = () => {
     const kind = queue.shift();
     if (!kind) {
@@ -179,7 +182,7 @@ $('btn-seed').addEventListener('click', () => {
     specimens.push(spec);
     field.add(spec, true);
     updateCount();
-    setTimeout(one, 180);
+    setTimeout(one, 140);
   };
   one();
 });

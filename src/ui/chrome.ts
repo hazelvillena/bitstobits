@@ -14,13 +14,15 @@ const GLYPHS: Record<ToolKind, string> = {
 export class Chrome {
   private toolEls = new Map<ToolKind, HTMLButtonElement>();
   private sizeEl: HTMLElement;
-  private sizeNum: HTMLElement;
+  private sizeNum: HTMLInputElement;
   private indicator: HTMLElement;
   private active: ToolKind | null = null;
   private shownSize = -1;
   private sizeTarget = 0;
   private sizeRaf = 0;
   onBrush: (dir: -1 | 1) => void = () => {};
+  /** A typed size, 5 to 28. */
+  onBrushValue: (size: number) => void = () => {};
 
   constructor() {
     const bar = $('tools');
@@ -50,12 +52,28 @@ export class Chrome {
     // Brush size: minus, a dot that scales with the size, plus.
     const size = document.createElement('div');
     size.className = 'size-group';
-    size.innerHTML = `<button type="button" aria-label="Smaller brush">−</button><span class="size-dot" aria-hidden="true"><i></i></span><span class="size-num num" aria-live="polite"></span><button type="button" aria-label="Larger brush">+</button>`;
+    size.innerHTML = `<button type="button" aria-label="Smaller brush">−</button><span class="size-dot" aria-hidden="true"><i></i></span><input class="size-num num" type="text" inputmode="numeric" maxlength="2" aria-label="Brush size, 5 to 28" /><button type="button" aria-label="Larger brush">+</button>`;
     const [minus, plus] = size.querySelectorAll('button');
     minus.addEventListener('click', () => this.onBrush(-1));
     plus.addEventListener('click', () => this.onBrush(1));
     this.sizeEl = size.querySelector('.size-dot i')!;
-    this.sizeNum = size.querySelector('.size-num')!;
+    this.sizeNum = size.querySelector<HTMLInputElement>('.size-num')!;
+    // Type a size and press Enter (or leave the field) to apply it.
+    const commit = () => {
+      const v = parseInt(this.sizeNum.value, 10);
+      if (Number.isFinite(v)) this.onBrushValue(Math.min(28, Math.max(5, v)));
+      this.sizeNum.value = String(this.sizeTarget);
+    };
+    this.sizeNum.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') this.sizeNum.blur();
+      if (e.key === 'Escape') {
+        this.sizeNum.value = String(this.sizeTarget);
+        this.sizeNum.blur();
+      }
+    });
+    this.sizeNum.addEventListener('focus', () => this.sizeNum.select());
+    this.sizeNum.addEventListener('blur', commit);
     bar.appendChild(size);
     // Keep the pill on its tool when the toolbar reflows.
     new ResizeObserver(() => this.placeIndicator(false)).observe(group);
@@ -92,7 +110,7 @@ export class Chrome {
     if (!animate) ind.style.transition = 'none';
     ind.style.opacity = '1';
     ind.style.width = `${b.offsetWidth}px`;
-    ind.style.transform = `translateX(${b.offsetLeft - 3}px)`;
+    ind.style.transform = `translateX(${b.offsetLeft - 4}px)`;
     if (!animate) {
       void ind.offsetWidth; // apply without animating, then restore transitions
       ind.style.transition = '';
@@ -111,7 +129,7 @@ export class Chrome {
     this.sizeTarget = target;
     if (this.shownSize < 0) {
       this.shownSize = target;
-      this.sizeNum.textContent = String(target);
+      this.sizeNum.value = String(target);
       return;
     }
     cancelAnimationFrame(this.sizeRaf);
@@ -120,7 +138,7 @@ export class Chrome {
       const k = Math.min(1, (now - t0) / dur);
       const e = 1 - Math.pow(1 - k, 3);
       this.shownSize = from + (target - from) * e;
-      this.sizeNum.textContent = String(Math.round(this.shownSize));
+      if (document.activeElement !== this.sizeNum) this.sizeNum.value = String(Math.round(this.shownSize));
       if (k < 1) this.sizeRaf = requestAnimationFrame(tick);
     };
     this.sizeNum.classList.remove('bump');

@@ -88,7 +88,7 @@ export class Field {
     const { geo, radius: r0 } = specimenGeometry(spec);
     const mat = createSpecimenMaterial(spec.material);
     const mesh = new Mesh(geo, mat);
-    const radius = 0.5 * (0.85 + spec.sig.volume * 0.3);
+    const radius = 0.42 * (0.85 + spec.sig.volume * 0.3);
     mesh.scale.setScalar(radius / r0);
     mesh.rotation.set(Math.random() * 0.6, Math.random() * Math.PI * 2, 0);
     this.scene.add(mesh);
@@ -264,9 +264,9 @@ export class Field {
       pb.copy(A.pb); l.b.mesh.localToWorld(pb);
       na.copy(A.na).applyQuaternion(l.a.mesh.quaternion);
       nb.copy(A.nb).applyQuaternion(l.b.mesh.quaternion);
-      // Lean the normals toward each other so the bridge reaches, not splays.
-      na.lerp(dir, 0.5).normalize();
-      nb.lerp(dir.clone().negate(), 0.5).normalize();
+      // Align both ends with the line between the forms: a calm, straight span.
+      na.lerp(dir, 0.85).normalize();
+      nb.lerp(dir.clone().negate(), 0.85).normalize();
 
       side.crossVectors(dir, new Vector3(0, 0, 1)).normalize();
       const grow = Math.min(1, (this.time - l.born - 0.6) / 2.4);

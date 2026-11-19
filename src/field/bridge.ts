@@ -16,11 +16,11 @@ const RAD = 14; // around
 
 /** Shape of a bridge, as fractions of the joined forms' radii. */
 export const BRIDGE = {
-  root: 0.15, // flared root where it leaves each form
-  filament: [0.022, 0.05] as [number, number], // thin middle, from weak to strong kinship
-  flare: 0.11, // how far along (0..1) the root flare reaches
-  sway: 0.14, // S-curve amplitude, as a share of the span
-  pull: 0.36, // how far the curve follows each surface normal before turning
+  root: 0.17, // flared root where it leaves each form
+  filament: [0.04, 0.06] as [number, number], // steady middle, from weak to strong kinship
+  flare: 0.14, // how far along (0..1) the root flare reaches
+  sway: 0, // no S-curve: connections run straight and calm
+  pull: 0.22, // how far the bridge follows each surface normal before running straight
 };
 
 /**

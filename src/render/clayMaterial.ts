@@ -76,13 +76,18 @@ export function createClayMaterial(vol: Volume, material: string) {
         bool hit = false;
         // Track the closest approach, for soft anti-aliased silhouettes.
         float dMin = 1e9, tMin = t;
-        for (int i = 0; i < 140; i++) {
+        // Enough steps for rays that graze along long, thin extrusions; if the
+        // budget runs out very close to the surface, that still counts as a hit.
+        float dLast = 1.0;
+        for (int i = 0; i < 260; i++) {
           float d = map(ro + rd * t);
+          dLast = d;
           if (d < dMin) { dMin = d; tMin = t; }
           if (d < 0.0012) { hit = true; break; }
-          t += max(d * 0.7, 0.002);
+          t += max(d * 0.8, 0.0025);
           if (t > tb.y) break;
         }
+        if (!hit && dLast < 0.006 && t <= tb.y) hit = true;
         float coverage = 1.0;
         if (!hit) {
           float fp = uPixel * tMin * 1.2;
