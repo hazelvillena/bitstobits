@@ -58,7 +58,9 @@ self.onmessage = async (e: MessageEvent) => {
       // on-screen distance it does not shrink when the hand turns or points.
       const w = res.worldLandmarks[i];
       const pinch = w ? Math.hypot(w[4].x - w[8].x, w[4].y - w[8].y, w[4].z - w[8].z) : 1;
-      return { lm: arr, right: label === 'Right', pinch };
+      // Palm width (index knuckle to little-finger knuckle), to make the pinch hand-size independent.
+      const palm = w ? Math.hypot(w[5].x - w[17].x, w[5].y - w[17].y, w[5].z - w[17].z) : 0.08;
+      return { lm: arr, right: label === 'Right', pinch, palm };
     });
     self.postMessage({ type: 'result', hands, t: msg.t }, { transfer: hands.map((h) => h.lm.buffer) });
   }

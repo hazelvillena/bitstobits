@@ -41,12 +41,27 @@ export class Atelier {
     this.canvas = canvas;
     this.renderer = new WebGLRenderer({ canvas, antialias: false, alpha: true, powerPreference: 'high-performance' });
     this.renderer.setClearColor(0x000000, 0);
-    this.pixelRatio = Math.min(window.devicePixelRatio, 2);
+    this.pixelRatio = Math.min(window.devicePixelRatio, 1.5);
 
     this.camera.position.set(0, 0.2, 4.4);
     this.camera.lookAt(0, 0, 0);
 
     this.volume = new Volume(128);
+    // Partial uploads: send only the changed z-layers with texSubImage3D.
+    this.volume.uploadLayers = (tex, data, k0, k1, channels) => {
+      const props = this.renderer.properties.get(tex) as { __webglTexture?: WebGLTexture };
+      if (!props.__webglTexture || tex.version === 0) return false;
+      const gl = this.renderer.getContext() as WebGL2RenderingContext;
+      const n = tex.image.width;
+      this.renderer.state.bindTexture(gl.TEXTURE_3D, props.__webglTexture);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      const fmt = channels === 1 ? gl.RED : gl.RG;
+      const type = channels === 1 ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE;
+      gl.texSubImage3D(gl.TEXTURE_3D, 0, 0, 0, k0, n, n, k1 - k0 + 1, fmt, type, data, k0 * n * n * channels);
+      return true;
+    };
     this.clay = createClayMaterial(this.volume, this.material);
     this.tips = this.clay.uniforms.uTips.value as Vector4[];
     const box = new Mesh(new BoxGeometry(2, 2, 2), this.clay);

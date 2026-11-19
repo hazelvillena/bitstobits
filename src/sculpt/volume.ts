@@ -40,6 +40,15 @@ export class Volume {
 
   private sdfDirty = false;
   private attrDirty = false;
+  // Dirty z-slab range (in voxel layers) for partial GPU uploads.
+  private sdfK = [Infinity, -Infinity];
+  private attrK = [Infinity, -Infinity];
+  private coolTimer = 0;
+  /**
+   * Uploads a range of z-layers to the GPU. Set by the renderer; returns
+   * false when the texture isn't on the GPU yet (then a full upload runs).
+   */
+  uploadLayers: ((tex: Data3DTexture, data: Uint16Array | Uint8Array, k0: number, k1: number, channels: number) => boolean) | null = null;
   // Bounding box of voxels with heat > 0 (for cheap decay).
   private hotMin = [Infinity, Infinity, Infinity];
   private hotMax = [-Infinity, -Infinity, -Infinity];
@@ -114,6 +123,8 @@ export class Volume {
       this.attr8[p * 2 + 1] = this.heat[p] * 255;
     }
     this.sdfDirty = this.attrDirty = true;
+    this.sdfK = [0, this.n - 1];
+    this.attrK = [0, this.n - 1];
   }
 
   // ───────────── Sampling ─────────────
@@ -196,6 +207,8 @@ export class Volume {
     this.hotMin = [Math.min(this.hotMin[0], i0), Math.min(this.hotMin[1], j0), Math.min(this.hotMin[2], k0)];
     this.hotMax = [Math.max(this.hotMax[0], i1), Math.max(this.hotMax[1], j1), Math.max(this.hotMax[2], k1)];
     this.sdfDirty = this.attrDirty = true;
+    this.sdfK = [Math.min(this.sdfK[0], k0), Math.max(this.sdfK[1], k1)];
+    this.attrK = [Math.min(this.attrK[0], k0), Math.max(this.attrK[1], k1)];
   }
 
   private writeVoxel(p: number) {
@@ -266,9 +279,13 @@ export class Volume {
     }
   }
 
-  /** Decay heat. Cheap: only walks the hot bounding box. */
+  /** Decay heat, ten times a second. Only walks the hot bounding box. */
   cool(dt: number) {
     if (this.hotMin[0] === Infinity) return;
+    this.coolTimer += dt;
+    if (this.coolTimer < 0.1) return;
+    dt = this.coolTimer;
+    this.coolTimer = 0;
     const decay = Math.exp(-dt * 0.9);
     const [i0, j0, k0] = this.hotMin, [i1, j1, k1] = this.hotMax;
     let any = false;
@@ -286,6 +303,7 @@ export class Volume {
         }
       }
     this.attrDirty = true;
+    this.attrK = [Math.min(this.attrK[0], k0), Math.max(this.attrK[1], k1)];
     if (!any) {
       this.hotMin = [Infinity, Infinity, Infinity];
       this.hotMax = [-Infinity, -Infinity, -Infinity];
@@ -385,13 +403,17 @@ export class Volume {
       this.rebuild();
       this.strokesDirty = false;
     }
+    // Only the z-layers that changed go to the GPU (a few hundred KB
+    // instead of the whole 4 MB volume), unless the texture is new.
     if (this.sdfDirty) {
-      this.sdfTex.needsUpdate = true;
+      if (!this.uploadLayers?.(this.sdfTex, this.sdfHalf, this.sdfK[0], this.sdfK[1], 1)) this.sdfTex.needsUpdate = true;
       this.sdfDirty = false;
+      this.sdfK = [Infinity, -Infinity];
     }
     if (this.attrDirty) {
-      this.attrTex.needsUpdate = true;
+      if (!this.uploadLayers?.(this.attrTex, this.attr8, this.attrK[0], this.attrK[1], 2)) this.attrTex.needsUpdate = true;
       this.attrDirty = false;
+      this.attrK = [Infinity, -Infinity];
     }
   }
 }

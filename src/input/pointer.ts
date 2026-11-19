@@ -96,6 +96,8 @@ export class PointerInput {
     if (this.down) {
       if (this.tool === 'drill') this.sculptor.drill(this.hit, this.d, dt, ease);
     }
-    return [{ pos: this.hit.clone(), strength: this.down ? 1 : 0.5 }];
+    // Hover shows where a grab would land, snapped to a remembered face.
+    const at = !this.down && isStroke(this.tool) ? this.sculptor.snapWorld(this.hit.clone()) : this.hit.clone();
+    return [{ pos: at, strength: this.down ? 1 : 0.5 }];
   }
 }

@@ -13,6 +13,8 @@ export interface HandActivity {
   pinch: number;
   /** Whether the aim currently lands on the form. */
   onForm: boolean;
+  /** Length of the stroke in progress (object units), 0 if none. */
+  amount: number;
 }
 
 interface Grab {
@@ -63,15 +65,17 @@ export class HandInput {
    * past a wider distance (hysteresis), using this hand's calibration.
    */
   private pinchState(h: HandFrame, dt: number) {
-    const { pinchStart, pinchRelease, pinchOpen } = this.tracker.cal;
+    const { pinchStart, pinchRelease, pinchOpen, bendMin } = this.tracker.cal;
     const st = this.pinching.get(h.right) ?? { on: false, t: 0 };
     const was = st.on;
-    const d = h.pinchDist;
+    const d = h.pinchRel;
     if (st.on) {
       if (d > pinchRelease) st.on = false;
     } else {
-      st.t = d < pinchStart ? st.t + dt : 0;
-      if (st.t >= 0.08) st.on = true;
+      // Fingertips together and the index curled: a pointing hand never counts.
+      const closing = d < pinchStart && h.indexBend > bendMin;
+      st.t = closing ? st.t + dt : 0;
+      if (st.t >= 0.1) st.on = true;
     }
     this.pinching.set(h.right, st);
     const amount = Math.min(1, Math.max(0, (pinchOpen - d) / (pinchOpen - pinchStart)));
@@ -155,7 +159,8 @@ export class HandInput {
         const hit = this.atelier.castSurface(aim.x, aim.y);
         if (hit) {
           onForm = true;
-          tips.push({ pos: hit.point, strength: 0.35 + 0.5 * pinch.amount });
+          const at = isStroke(selected) ? this.sculptor.snapWorld(hit.point) : hit.point;
+          tips.push({ pos: at, strength: 0.35 + 0.5 * pinch.amount });
         }
       }
 
@@ -165,6 +170,7 @@ export class HandInput {
         engaged,
         pinch: pinch.amount,
         onForm,
+        amount: grab && isStroke(grab.tool) ? this.sculptor.strokeAmount(String(key)) : 0,
       });
     }
 

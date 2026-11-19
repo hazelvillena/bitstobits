@@ -2,7 +2,7 @@ import './ui/base.css';
 import { Atelier } from './render/atelier';
 import { Sculptor, type ToolKind } from './sculpt/sculptor';
 import { PointerInput } from './input/pointer';
-import { ARCHETYPES, fillLump, sculptSample, type Archetype } from './sculpt/seed';
+import { ARCHETYPES, DEFAULT_SHAPE, SHAPES, fillLump, sculptSample, type Archetype } from './sculpt/seed';
 import { Volume } from './sculpt/volume';
 import { Chrome } from './ui/chrome';
 import { HandOverlay } from './ui/handOverlay';
@@ -12,7 +12,7 @@ import { Calibration } from './input/calibration';
 import { Field } from './field/field';
 import { codeOf, createSpecimen, loadSpecimens, saveSpecimens, type Specimen } from './specimen/specimen';
 import { traitLabel } from './ui/tokens';
-import { radarSVG } from './ui/radar';
+import { KIN_COLORS, radarSVG } from './ui/radar';
 import { Thumbnailer } from './field/thumbs';
 import { Tour } from './ui/tour';
 import { initDivider } from './ui/divider';
@@ -62,7 +62,27 @@ let mode: 'intro' | 'calibrate' | 'sculpt' = 'intro';
 let input: 'hands' | 'pointer' = 'pointer';
 let accepting = false;
 
-fillLump(atelier.volume);
+
+// ───── Shape ─────
+let shape = DEFAULT_SHAPE;
+try {
+  shape = localStorage.getItem('b2b.shape') ?? DEFAULT_SHAPE;
+} catch { /* ignore */ }
+const shapePicker = new Dropdown(
+  $('shapes'),
+  SHAPES.map((s) => ({ value: s.key, label: s.name, icon: s.icon })),
+  'Starting shape',
+);
+shapePicker.set(shape);
+// Choosing a shape starts a new form with it.
+shapePicker.onChange = (key) => {
+  shape = key;
+  try {
+    localStorage.setItem('b2b.shape', key);
+  } catch { /* ignore */ }
+  startOver();
+};
+fillLump(atelier.volume, 0, shape);
 
 // ───── Material ─────
 const matPicker = new Dropdown(
@@ -84,29 +104,50 @@ try {
 } catch { /* ignore */ }
 setMaterial(preset(savedMaterial).key);
 
-// ───── Intro ─────
-function begin(kind: 'hands' | 'pointer') {
-  $('welcome').classList.add('gone');
-  input = kind;
-  chrome.setInputMode(kind);
-  if (kind === 'pointer') {
-    pointer.enabled = true;
-    mode = 'sculpt';
-    chrome.setActive(pointer.tool);
-    setTimeout(() => tour.start(), 700);
+// ───── Input: hands or mouse, switchable any time ─────
+const ONBOARDED = 'b2b.onboarded', INPUT = 'b2b.input';
+const remember = (k: string, v: string) => {
+  try {
+    localStorage.setItem(k, v);
+  } catch { /* ignore */ }
+};
+const recall = (k: string) => {
+  try {
+    return localStorage.getItem(k);
+  } catch {
+    return null;
   }
+};
+const firstVisit = !recall(ONBOARDED);
+
+const modeSwitch = $('mode-switch');
+function showMode(kind: 'hands' | 'pointer') {
+  modeSwitch.dataset.i = kind === 'hands' ? '0' : '1';
+  for (const b of modeSwitch.querySelectorAll<HTMLButtonElement>('button')) b.setAttribute('aria-checked', String(b.dataset.mode === kind));
+  chrome.setInputMode(kind);
 }
 
-$('btn-start').addEventListener('click', () => {
-  $('welcome').querySelector<HTMLElement>('[data-step="1"]')!.hidden = true;
-  $('welcome').querySelector<HTMLElement>('[data-step="2"]')!.hidden = false;
-  $('btn-calibrate').focus();
-});
-$('btn-pointer').addEventListener('click', () => begin('pointer'));
-$('btn-calibrate').addEventListener('click', async () => {
-  begin('hands');
+/** Mouse: the camera is off and only the pointer sculpts. */
+function usePointer() {
+  hands.enabled = false;
+  calibration.cancel();
+  tracker.stop();
+  overlay.clear();
+  input = 'pointer';
+  mode = 'sculpt';
+  pointer.enabled = true;
+  chrome.setActive(pointer.tool);
+  showMode('pointer');
+  remember(INPUT, 'pointer');
+}
+
+/** Hands: camera on; calibrate if this browser hasn't yet (or when asked). */
+async function useHands(calibrate = false) {
+  pointer.enabled = false;
+  input = 'hands';
+  showMode('hands');
+  remember(INPUT, 'hands');
   const status = $('status');
-  status.hidden = false;
   tracker.onStatus = (s) => {
     status.textContent = s;
     status.hidden = !s;
@@ -114,15 +155,57 @@ $('btn-calibrate').addEventListener('click', async () => {
   try {
     await tracker.start();
     overlay.resize(tracker.cal.aspect);
-    mode = 'calibrate';
-    calibration.start();
+    chrome.setActive(pointer.tool);
+    if (calibrate || !tracker.calibrated) {
+      mode = 'calibrate';
+      hands.enabled = false;
+      calibration.start();
+    } else {
+      mode = 'sculpt';
+      hands.enabled = true;
+    }
   } catch (err) {
     console.error(err);
     status.textContent = 'Camera unavailable. Using the mouse instead.';
+    status.hidden = false;
     setTimeout(() => (status.hidden = true), 2600);
-    begin('pointer');
+    usePointer();
   }
+}
+
+for (const b of modeSwitch.querySelectorAll<HTMLButtonElement>('button')) {
+  b.addEventListener('click', () => (b.dataset.mode === 'hands' ? input !== 'hands' && useHands() : input !== 'pointer' && usePointer()));
+}
+$('btn-help').addEventListener('click', () => tour.start());
+
+// Welcome: only on the first visit. Later visits go straight in.
+function closeWelcome() {
+  $('welcome').classList.add('gone');
+  remember(ONBOARDED, '1');
+}
+$('btn-start').addEventListener('click', () => {
+  $('welcome').querySelector<HTMLElement>('[data-step="1"]')!.hidden = true;
+  $('welcome').querySelector<HTMLElement>('[data-step="2"]')!.hidden = false;
+  $('btn-calibrate').focus();
 });
+$('btn-skip').addEventListener('click', () => {
+  closeWelcome();
+  usePointer();
+});
+$('btn-pointer').addEventListener('click', () => {
+  closeWelcome();
+  usePointer();
+  setTimeout(() => tour.start(), 700);
+});
+$('btn-calibrate').addEventListener('click', () => {
+  closeWelcome();
+  useHands(true);
+});
+if (!firstVisit) {
+  $('welcome').hidden = true;
+  if (recall(INPUT) === 'hands') useHands();
+  else usePointer();
+}
 
 // After the pinch step, hands start sculpting for one practice pull.
 calibration.onPractice = () => {
@@ -130,7 +213,10 @@ calibration.onPractice = () => {
   hands.enabled = true;
   pointer.setTool('extrude');
 };
-calibration.onDone = () => tour.start();
+// The tour follows calibration only on the very first visit.
+calibration.onDone = () => {
+  if (firstVisit) tour.start();
+};
 // Hands act with whichever tool is selected; they never pick it themselves.
 hands.tool = () => pointer.tool;
 
@@ -152,16 +238,17 @@ window.addEventListener('keydown', (e) => {
   if (e.key === '[') sculptor.setBrush(sculptor.brush * 0.85);
   if (e.key === ']') sculptor.setBrush(sculptor.brush / 0.85);
   if ((e.key === 'n' || e.key === 'N') && mode === 'sculpt') startOver();
-  if ((e.key === 'c' || e.key === 'C') && input === 'hands' && mode === 'sculpt') {
-    hands.enabled = false;
-    mode = 'calibrate';
-    calibration.start();
+  if ((e.key === 'c' || e.key === 'C') && input === 'hands' && mode === 'sculpt') useHands(true);
+  if (e.key === 'h' || e.key === 'H') {
+    if (input === 'hands') usePointer();
+    else useHands();
   }
 });
 
 // ───── Keep / start over ─────
 function startOver() {
-  fillLump(atelier.volume);
+  sculptor.reset();
+  fillLump(atelier.volume, 0, shape);
   atelier.growIn();
 }
 $('btn-reset').addEventListener('click', startOver);
@@ -222,14 +309,15 @@ field.onHover = (spec, kin) => {
     inspector.hidden = true;
     return;
   }
-  // One chart: this form over its closest relative, so the overlap reads.
-  const top = kin[0];
-  const legend = top
-    ? `<div class="legend"><span><i class="self"></i>${codeOf(spec)}</span><span><i class="kin"></i>${codeOf(top.spec)}</span></div>
-       <div class="match"><span>Alike by ${traitLabel[top.trait].toLowerCase()}</span><b class="num">${Math.round(top.k * 100)}%</b></div>`
+  // One chart: this form over every relative it is joined to, each in its
+  // own colour, with a row per relative: how alike, and by which trait.
+  const rows = kin.length
+    ? `<ul class="kin-rows">${kin
+        .map((k, i) => `<li><i style="background:${KIN_COLORS[i % KIN_COLORS.length]}"></i><span class="code num">${codeOf(k.spec)}</span><span class="by">${traitLabel[k.trait].toLowerCase()}</span><b class="num">${Math.round(k.k * 100)}%</b></li>`)
+        .join('')}</ul>`
     : `<div class="match"><span>No relatives yet</span></div>`;
   card.placed = false;
-  inspector.innerHTML = `<header><h3 class="num">${codeOf(spec)}</h3><span class="sub">${preset(spec.material).name}</span></header>${radarSVG(spec.sig, top?.spec.sig)}${legend}`;
+  inspector.innerHTML = `<header><h3 class="num">${codeOf(spec)}</h3><span class="sub">${preset(spec.material).name}</span></header>${radarSVG(spec.sig, kin.map((k) => k.spec.sig))}<div class="legend"><span><i class="self"></i>This form</span><span class="dim">${kin.length} ${kin.length === 1 ? 'relative' : 'relatives'}</span></div>${rows}`;
   inspector.hidden = false;
 };
 
@@ -301,6 +389,7 @@ ro.observe($('field'));
 let last = performance.now();
 let slow = 0;
 let calm = 0;
+let fieldTick = 0;
 function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
@@ -318,7 +407,8 @@ function frame(now: number) {
       tips = tips.concat(hands.update(dt).tips);
       if (calibration.active) {
         calibration.update(dt, anchor, pane);
-        calibration.practiceProgress(dt, [...hands.activity.values()].some((a) => a.engaged && a.tool === 'extrude'));
+        const stroke = [...hands.activity.values()].find((a) => a.tool === 'extrude' && a.amount > 0);
+        calibration.practiceProgress(dt, stroke ? { engaged: stroke.engaged, amount: stroke.amount } : null);
       }
       overlay.draw(tracker.hands, 'sculpt', dt, tracker.cal.mmPerUnit, hands.activity);
     }
@@ -328,8 +418,13 @@ function frame(now: number) {
   atelier.setTips(tips);
   atelier.update(dt);
   atelier.render();
-  field.update(dt);
-  if (view === 'network') field.render();
+  // The collection runs at full rate while things move, and at a quarter
+  // rate when calm (forms only turning slowly).
+  fieldTick++;
+  if (field.busy || fieldTick % 4 === 0) {
+    field.update(field.busy ? dt : dt * 4);
+    if (view === 'network') field.render();
+  }
   placeInspector(dt);
 
   // Adaptive resolution: protect the frame rate first.
@@ -339,7 +434,7 @@ function frame(now: number) {
   if (slow > 0.5) {
     atelier.setPixelRatio(Math.max(1, atelier.currentPixelRatio - 0.25));
     slow = 0;
-  } else if (calm > 2 && atelier.currentPixelRatio < Math.min(window.devicePixelRatio, 2)) {
+  } else if (calm > 2 && atelier.currentPixelRatio < Math.min(window.devicePixelRatio, 1.5)) {
     atelier.setPixelRatio(atelier.currentPixelRatio + 0.25);
     calm = 0;
   }

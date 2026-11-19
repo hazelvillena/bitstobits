@@ -1,13 +1,16 @@
-import { dist, palmSpan, readPose, DEFAULT_CAL, type HandFrame } from './handModel';
+import { palmSpan, readPose, DEFAULT_CAL, type HandFrame } from './handModel';
 import type { HandTracker } from './handTracker';
 
 const $ = (id: string) => document.getElementById(id)!;
 
 type StepKey = 'open' | 'pinch' | 'practice';
 const STEPS: { key: StepKey; title: string; sub: string; hold: number }[] = [
-  { key: 'open', title: 'Hold up your open hand', sub: 'Palm toward the screen, about an arm away.', hold: 1.8 },
-  { key: 'pinch', title: 'Now pinch', sub: 'Touch thumb and index, and hold.', hold: 1.2 },
-  { key: 'practice', title: 'Try it', sub: 'Point at the form, pinch, and pull.', hold: 0 },
+  { key: 'open', title: 'Hold up your open hand', sub: 'Palm toward the screen, about an arm away.', hold: 2.2 },
+  {
+    key: 'pinch', title: 'Pinch thumb and index',
+    sub: 'Bring the tips of your thumb and index finger together, and hold. Pinching acts; pointing only aims.', hold: 1.6,
+  },
+  { key: 'practice', title: 'Try a pull', sub: 'Point at the form to aim, pinch, then pull out slowly. Let go when it looks right.', hold: 0 },
 ];
 
 /**
@@ -26,7 +29,7 @@ export class Calibration {
   private i = 0;
   private held = 0;
   private shown = 0;
-  private samples = { span: [] as number[], open: [] as number[], closed: [] as number[], index: [] as number[] };
+  private samples = { span: [] as number[], open: [] as number[], closed: [] as number[], openBend: [] as number[], pinchBend: [] as number[] };
   private card = $('calib-card');
   private ring = this.card.querySelector<SVGCircleElement>('.ring-fill')!;
   private dots = [...this.card.querySelectorAll<HTMLElement>('.step-dots i')];
@@ -35,11 +38,18 @@ export class Calibration {
 
   constructor(private tracker: HandTracker) {}
 
+  /** Stop calibrating without finishing (switched to mouse). */
+  cancel() {
+    this.active = false;
+    $('calibration').hidden = true;
+  }
+
   start() {
     this.active = true;
     this.i = 0;
     this.held = this.shown = this.practiced = 0;
-    this.samples = { span: [], open: [], closed: [], index: [] };
+    this.readyToRelease = false;
+    this.samples = { span: [], open: [], closed: [], openBend: [], pinchBend: [] };
     this.pos.placed = false;
     $('calibration').hidden = false;
     $('calibration').classList.remove('leaving');
@@ -81,16 +91,18 @@ export class Calibration {
         ok = readPose(h.lm, { ...DEFAULT_CAL, aspect: asp }).pose === 'open';
         if (ok) {
           this.samples.span.push(palmSpan(h.lm, asp));
-          this.samples.open.push(h.pinchDist);
-          let idx = 0;
-          for (let j = 5; j < 8; j++) idx += dist(h.lm, j, j + 1, asp);
-          this.samples.index.push(idx);
+          this.samples.open.push(h.pinchRel);
+          this.samples.openBend.push(h.indexBend);
         }
       } else {
-        // A pinch is the fingers coming well inside their open spread.
+        // A pinch: fingertips well inside their open spread, index curling.
         const open = median(this.samples.open, DEFAULT_CAL.pinchOpen);
-        ok = h.pinchDist < Math.min(0.035, open * 0.45);
-        if (ok) this.samples.closed.push(h.pinchDist);
+        const straight = median(this.samples.openBend, 0.2);
+        ok = h.pinchRel < Math.min(0.45, open * 0.4) && h.indexBend > straight + 0.12;
+        if (ok) {
+          this.samples.closed.push(h.pinchRel);
+          this.samples.pinchBend.push(h.indexBend);
+        }
       }
     }
     // Forgiving: losing the pose for a moment only eases the ring back.
@@ -100,13 +112,23 @@ export class Calibration {
     if (this.held >= step.hold) this.next();
   }
 
-  /** Main reports whether a real stroke is in progress during practice. */
-  practiceProgress(dt: number, engaged: boolean) {
+  /**
+   * Practice counts only a real pull: the extrusion must reach a good length
+   * and be held there, then released. Main reports the stroke each frame.
+   */
+  practiceProgress(dt: number, stroke: { engaged: boolean; amount: number } | null) {
     if (!this.active || STEPS[this.i].key !== 'practice') return;
-    if (engaged) this.practiced += dt;
-    this.setRing(Math.min(1, this.practiced / 0.8));
-    if (this.practiced >= 0.8) this.finish();
+    const long = !!stroke && stroke.engaged && stroke.amount > 0.16;
+    if (long) this.practiced = Math.min(1.2, this.practiced + dt);
+    this.setRing(Math.min(1, this.practiced / 1.2));
+    if (this.practiced >= 1.2 && !this.readyToRelease) {
+      this.readyToRelease = true;
+      swapText('calib-sub', 'Lovely. Now let go.');
+    }
+    // Done when you let go after a good pull.
+    if (this.readyToRelease && !stroke) this.finish();
   }
+  private readyToRelease = false;
 
   private next() {
     if (STEPS[this.i].key === 'pinch') this.commit();
@@ -120,12 +142,16 @@ export class Calibration {
     cal.span = median(this.samples.span, DEFAULT_CAL.span);
     // An adult palm (wrist to knuckle, blended with width) is roughly 90 mm.
     cal.mmPerUnit = 90 / cal.span;
+    // Everything relative to palm width, so it holds at any distance.
     const open = median(this.samples.open, DEFAULT_CAL.pinchOpen);
-    const closed = median(this.samples.closed, 0.012);
+    const closed = median(this.samples.closed, 0.15);
     cal.pinchOpen = open;
-    // Start a little above your pinch; release well before your open hand.
-    cal.pinchStart = clamp(closed + (open - closed) * 0.28, 0.016, 0.04);
-    cal.pinchRelease = Math.min(open * 0.85, cal.pinchStart + Math.max(0.012, (open - closed) * 0.22));
+    cal.pinchStart = clamp(closed + (open - closed) * 0.2, 0.15, 0.42);
+    cal.pinchRelease = clamp(closed + (open - closed) * 0.38, cal.pinchStart + 0.08, 0.7);
+    // The index must curl at least partway toward your measured pinch.
+    const straight = median(this.samples.openBend, 0.2);
+    const curled = median(this.samples.pinchBend, 0.9);
+    cal.bendMin = clamp(straight + (curled - straight) * 0.45, 0.25, 1.2);
     this.tracker.saveCalibration();
   }
 

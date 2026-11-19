@@ -7,6 +7,8 @@ export interface DropdownOption {
   label: string;
   /** Optional CSS background for a leading swatch. */
   swatch?: string;
+  /** Optional inline SVG paths (24×24 line icon) instead of a swatch. */
+  icon?: string;
 }
 
 export class Dropdown {
@@ -39,7 +41,7 @@ export class Dropdown {
       b.className = 'dropdown-item';
       b.setAttribute('role', 'option');
       b.dataset.value = o.value;
-      b.innerHTML = `${o.swatch ? `<i class="swatch" style="background:${o.swatch}"></i>` : ''}<span>${o.label}</span>`;
+      b.innerHTML = `${lead(o)}<span>${o.label}</span>`;
       b.addEventListener('click', () => {
         this.set(o.value, true);
         this.close();
@@ -92,8 +94,15 @@ export class Dropdown {
   set(value: string, notify = false) {
     const o = this.options.find((x) => x.value === value) ?? this.options[0];
     this.value = o.value;
-    this.trigger.innerHTML = `${o.swatch ? `<i class="swatch" style="background:${o.swatch}"></i>` : ''}<span>${o.label}</span><svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1 L5 5 L9 1"/></svg>`;
+    this.trigger.innerHTML = `${lead(o)}<span>${o.label}</span><svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1 L5 5 L9 1"/></svg>`;
     for (const b of this.items) b.setAttribute('aria-selected', String(b.dataset.value === o.value));
     if (notify) this.onChange(o.value);
   }
+}
+
+/** A swatch or a small line icon in front of a label. */
+function lead(o: DropdownOption) {
+  if (o.icon) return `<svg class="lucide opt-icon" viewBox="0 0 24 24" aria-hidden="true">${o.icon}</svg>`;
+  if (o.swatch) return `<i class="swatch" style="background:${o.swatch}"></i>`;
+  return '';
 }

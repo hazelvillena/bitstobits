@@ -7,9 +7,9 @@ Status: working prototype. See [DECISIONS.md](DECISIONS.md) for what changed and
 
 ## Experience
 
-1. **Start**: a short welcome, then a choice between hands (camera) and mouse.
-2. **Calibrate** (camera): a small card sits beside your hand and follows it. Hold up an open hand, then pinch (this measures your own pinch in 3D), then make one practice pull on the form.
-3. **Tour**: three highlighted tips: the tools, the brush size, and keeping a form. Skippable.
+1. **Start** (first visit only): a short welcome with Start or Skip, then hands (camera) or mouse. Later visits go straight in, in the last mode used. Switch any time with the Hands/Mouse control in the header (key H); mouse mode turns the camera off. The ? button replays the tips.
+2. **Calibrate** (camera, first time or key C): a small card sits beside your hand and follows it. Hold up an open hand; pinch thumb and index fingertips (measures your pinch relative to your palm, and how your index curls); then one practice pull that must reach a good length and be released.
+3. **Tour** (first visit): three highlighted tips: the tools, the brush size, and keeping a form. Skippable.
 4. **Sculpt**: you start from a smooth rhombicuboctahedron (squares and triangles, softly rounded edges). the current tool's name follows your wrist, so you always know what your hand is doing. The form answers to presence. Rings appear where a fingertip approaches; touched areas glow and cool.
 5. **Keep**: press Enter or "Keep this form". The form dissolves toward the collection.
 6. **Collection**: every kept form gets a six-digit code (for example 482 913). Switch between the network and a grid of all forms at the top. forms arrange by kinship. Close relatives grow thin ligaments between their nearest surfaces. Hover a form for a small card beside it: a radar chart overlaying its traits on its closest relative's, and how alike they are.
@@ -27,7 +27,9 @@ Pick a tool with keys 1 to 4 or the toolbar at the bottom of the sculpt pane. Th
 | 5 | Rotate | Drag anywhere (mouse: right drag). The form never turns on its own. |
 | Enter | Keep | |
 
-The outline on the form always marks the face being shaped: it moves with the tip of an extrusion or the floor of a pocket.
+The outline on the form always marks the face being shaped: it moves with the tip of an extrusion or the floor of a pocket. Every extrusion and pocket remembers its end face; aiming near one snaps to it, so you can continue a piece cleanly.
+
+Starting shapes (Shape menu): Polyhedron (default), Sphere, Cube, Diamond.
 
 Both hands can extrude at the same time. `[` and `]` (or the size control in the toolbar) change the brush size; the surface shows its exact outline. `M` cycles the material. Every tool eases in over a third of a second and is rate-limited, so changes are small and deliberate.
 
@@ -46,7 +48,7 @@ Other keys: `N` start over, `C` recalibrate. Sculpting takes two thirds of the s
 - Line density follows compression, so pressed areas draw tighter lines.
 - Heat shows recent touch.
 
-**Hands.** MediaPipe Hand Landmarker runs in a module Web Worker on the GPU delegate. Frames are sent only after the previous result returns, so tracking can never queue up behind rendering. A One-Euro filter smooths each landmark. Pinch is measured in 3D from MediaPipe's world landmarks (metres), so pointing never reads as pinching; it starts after 80 ms below your calibrated start distance and releases past a wider one. Depth is never used for interaction: the fingertip's screen position is raycast onto the first visible surface, and a pinch acts there. While pinched, hand motion moves the tool in the screen plane.
+**Hands.** MediaPipe Hand Landmarker runs in a module Web Worker on the GPU delegate. Frames are sent only after the previous result returns, so tracking can never queue up behind rendering. A One-Euro filter smooths each landmark. Pinch is measured in 3D from MediaPipe's world landmarks and divided by palm width, so it is the same for any hand at any distance; the index finger must also be curled (pointing keeps it straight). It starts after 100 ms below your calibrated start and releases past a wider value. Depth is never used for interaction: the fingertip's screen position is raycast onto the first visible surface, and a pinch acts there. While pinched, hand motion moves the tool in the screen plane.
 
 **Keeping a form.** Surface nets turn the field into a mesh. Seven traits, each 0 to 1:
 - openings (genus, from the Euler characteristic)
@@ -61,7 +63,7 @@ Forms are stored in IndexedDB.
 
 **Bridges.** Related forms are joined by symbiotic filaments: each form flares a root of its own matter toward its relative, easing into one fine filament that flows in a slow S-curve. Each half wears its own form's material, and a fine band at the middle in the trait colour says why they are joined. Closer kin get a slightly thicker filament. Anchors glide over the surfaces as forms turn.
 
-**Kinship.** A weighted distance between trait vectors becomes a kinship score (0 to 1). Each form links to up to 3 relatives above 0.62. The explanation for a link is the trait the two forms share most distinctively against the rest of the collection. Each form keeps up to two relatives.
+**Kinship.** A weighted distance between trait vectors becomes a kinship score (0 to 1). Every form links to its closest relative, plus one more if that one is also above 0.62. The hover card overlays all of a form's relatives. The explanation for a link is the trait the two forms share most distinctively against the rest of the collection. Each form keeps up to two relatives.
 
 ## Code map
 

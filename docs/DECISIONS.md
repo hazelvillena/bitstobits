@@ -2,6 +2,24 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-19 (control, pinch, performance, connections)
+
+**Your forms connect.** Measured: a form made from the starting shape had at most 0.35 kinship with any sample, against a 0.62 threshold, while samples within a family reached 0.97, so only samples ever linked. Now every form links to its closest relative; a second link needs the threshold. Link thickness still shows how alike they are.
+
+**Lighter at runtime.** Measured about 8.4 MB re-sent to the GPU every frame while sculpting and for seconds after. Now only the changed z-layers are uploaded (WebGL `texSubImage3D`; three.js has no partial update for 3D textures), heat cools at 10 Hz, resolution is capped at 1.5x, the collection runs at a quarter rate when calm, bridge anchors are measured every fourth frame, and mouse mode turns the camera off.
+
+**Pinch that ignores pointing.** The 3D pinch is divided by palm width (hand-size and distance independent) and also requires the index finger to curl; pointing keeps it straight. Calibration measures both. Copy now says it plainly: point to aim, pinch thumb and index fingertips to act. MediaPipe's Gesture Recognizer (Pointing_Up) is a fallback if needed.
+
+**Hands or mouse, any time.** A header switch (key H). Mouse mode stops the camera, so a hand can no longer act by accident.
+
+**Onboarding once.** Only on the first visit (localStorage), skippable from the first screen; later visits restore the last mode. The practice pull must reach a good length, be held, and be released before "Nicely done". A help button replays the tips.
+
+**Face snapping.** Strokes remember their end faces; aiming near one snaps to it and continues along its direction. Tested: grabbing 6 px off an extrusion's end extended it from 0.68 to 0.85 from the centre.
+
+**All relatives in the card.** The radar overlays every relative in its own colour with a row each (code, shared trait, % alike).
+
+**Starting shapes as data.** Polyhedron (default), Sphere, Cube and a flat Diamond in a Shape menu with line icons.
+
 ## 2026-11-18 (pinch, calibration, Press, tour, silver)
 
 **Pinch is measured in 3D.** One finger could extrude because the pinch was the on-screen thumb to index distance, which looks small when pointing. Now the worker sends the 3D distance from MediaPipe's world landmarks (metres). A pinch starts after 80 ms below a calibrated start distance and releases past a wider one, following Meta's start and stop thresholds and Ultraleap's hysteresis guidance.

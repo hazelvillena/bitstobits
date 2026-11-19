@@ -58,6 +58,10 @@ export interface HandFrame {
   pinchRatio: number;
   /** Thumb tip to index tip in metres (3D), smoothed. */
   pinchDist: number;
+  /** pinchDist divided by palm width: the same for small and large hands. */
+  pinchRel: number;
+  /** How bent the index finger is (radians): pinching curls it, pointing keeps it straight. */
+  indexBend: number;
 }
 
 export interface Calibration {
@@ -65,17 +69,22 @@ export interface Calibration {
   pinchOn: number; // ratio below which a pinch is read
   aspect: number; // camera width / height
   mmPerUnit: number;
-  /** 3D pinch thresholds in metres: start below `pinchStart`, release above `pinchRelease`. */
+  /**
+   * Pinch thresholds, relative to palm width: start below `pinchStart`,
+   * release above `pinchRelease`. `pinchOpen` is the open hand's value.
+   */
   pinchStart: number;
   pinchRelease: number;
-  /** Thumb to index distance with the hand open, in metres. */
   pinchOpen: number;
+  /** Minimum index bend (radians) for a pinch; pointing stays below it. */
+  bendMin: number;
 }
 
-// Pinch defaults follow Meta's hand tracking guidance: start near 1.6 to 2.5 cm, release near 3 to 4.5 cm.
+// Pinch defaults, relative to palm width (about 8 cm): start near 2.4 cm, release near 3.8 cm,
+// in line with Meta's start and stop thresholds; refined per hand in calibration.
 export const DEFAULT_CAL: Calibration = {
   span: 0.2, pinchOn: 0.32, aspect: 4 / 3, mmPerUnit: 420,
-  pinchStart: 0.025, pinchRelease: 0.042, pinchOpen: 0.09,
+  pinchStart: 0.3, pinchRelease: 0.48, pinchOpen: 1.1, bendMin: 0.5,
 };
 
 const P = (lm: Float32Array, i: number, aspect: number) => [lm[i * 3] * aspect, lm[i * 3 + 1], lm[i * 3 + 2] * aspect];
@@ -92,7 +101,7 @@ export function palmSpan(lm: Float32Array, aspect: number) {
  * Total bend of a finger chain in radians, measured in 3D. Joint angles do
  * not depend on how the hand is turned to the camera, unlike tip distances.
  */
-function bend(lm: Float32Array, j: number[], aspect: number) {
+export function bend(lm: Float32Array, j: number[], aspect: number) {
   let total = 0;
   for (let k = 0; k < j.length - 2; k++) {
     const a = P(lm, j[k], aspect), b = P(lm, j[k + 1], aspect), c = P(lm, j[k + 2], aspect);

@@ -15,7 +15,10 @@ const AXES: { key: TraitKey; label: string }[] = [
  * A radar of a form's traits, optionally overlaid with a relative's, so the
  * overlap reads at a glance. Returns an SVG string.
  */
-export function radarSVG(a: Signature, b?: Signature, size = 208) {
+/** Colours for overlaid relatives, in rank order. */
+export const KIN_COLORS = ['#5f9e1a', '#3b3fcf', '#d2237a', '#1f7f86'];
+
+export function radarSVG(a: Signature, kin: Signature[] = [], size = 208) {
   // Room around the chart for its labels.
   const c = size / 2, R = size / 2 - 34;
   const pt = (i: number, v: number) => {
@@ -36,6 +39,11 @@ export function radarSVG(a: Signature, b?: Signature, size = 208) {
     const anchor = Math.abs(x - c) < 4 ? 'middle' : x > c ? 'start' : 'end';
     return `<text class="r-label" x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="middle">${ax.label}</text>`;
   }).join('');
-  const kin = b ? `<polygon class="r-kin" points="${poly(b)}"/>` : '';
-  return `<svg class="radar" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" aria-hidden="true">${rings}${spokes}${kin}<polygon class="r-self" points="${poly(a)}"/>${labels}</svg>`;
+  // Relatives drawn faintest-first, so the closest sits on top.
+  const others = kin
+    .map((s, i) => ({ s, c: KIN_COLORS[i % KIN_COLORS.length], i }))
+    .reverse()
+    .map(({ s, c }) => `<polygon class="r-kin" style="stroke:${c};fill:${c}" points="${poly(s)}"/>`)
+    .join('');
+  return `<svg class="radar" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" aria-hidden="true">${rings}${spokes}${others}<polygon class="r-self" points="${poly(a)}"/>${labels}</svg>`;
 }

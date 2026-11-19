@@ -1,4 +1,4 @@
-import { HandFilter, readPose, PoseDebounce, type Calibration, type HandFrame, DEFAULT_CAL } from './handModel';
+import { bend, HandFilter, readPose, PoseDebounce, type Calibration, type HandFrame, DEFAULT_CAL } from './handModel';
 
 /**
  * Camera → worker → filtered hand frames.
@@ -19,21 +19,46 @@ export class HandTracker {
 
   constructor(private video: HTMLVideoElement) {
     try {
-      const saved = localStorage.getItem('b2b.calibration');
-      if (saved) this.cal = { ...DEFAULT_CAL, ...JSON.parse(saved) };
+      const saved = localStorage.getItem('b2b.calibration.v2');
+      if (saved) {
+        this.cal = { ...DEFAULT_CAL, ...JSON.parse(saved) };
+        this.calibrated = true;
+      }
     } catch { /* storage unavailable */ }
   }
 
+  /** Whether this browser has a saved calibration. */
+  calibrated = false;
+  private stream: MediaStream | null = null;
+
+  /** Turn the camera off and stop detecting (mouse mode). */
+  stop() {
+    this.stream?.getTracks().forEach((t) => t.stop());
+    this.stream = null;
+    this.video.srcObject = null;
+    this.ready = false;
+    this.hands = [];
+  }
+
   async start() {
+    if (this.ready) return;
     this.onStatus('Opening camera');
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user', frameRate: { ideal: 60 } },
       audio: false,
     });
+    this.stream = stream;
     this.video.srcObject = stream;
     await this.video.play();
     this.cal.aspect = this.video.videoWidth / this.video.videoHeight || 4 / 3;
 
+    if (this.worker) {
+      // Already loaded once: just resume.
+      this.ready = true;
+      this.onStatus('');
+      this.pump();
+      return;
+    }
     this.onStatus('Loading hand model');
     this.worker = new Worker(new URL('./hand.worker.ts', import.meta.url), { type: 'module' });
     await new Promise<void>((resolve, reject) => {
@@ -53,13 +78,15 @@ export class HandTracker {
 
   saveCalibration() {
     try {
-      localStorage.setItem('b2b.calibration', JSON.stringify(this.cal));
+      localStorage.setItem('b2b.calibration.v2', JSON.stringify(this.cal));
+      this.calibrated = true;
     } catch { /* ignore */ }
   }
 
   private pump = async () => {
     const v = this.video as HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => void };
     const next = () => (v.requestVideoFrameCallback ? v.requestVideoFrameCallback(this.pump) : requestAnimationFrame(this.pump));
+    if (!this.ready) return;
     if (!this.busy && this.worker && v.readyState >= 2) {
       this.busy = true;
       try {
@@ -72,7 +99,7 @@ export class HandTracker {
     next();
   };
 
-  private onResult(data: { type: string; hands: { lm: Float32Array; right: boolean; pinch: number }[]; t: number }) {
+  private onResult(data: { type: string; hands: { lm: Float32Array; right: boolean; pinch: number; palm: number }[]; t: number }) {
     if (data.type !== 'result') return;
     this.busy = false;
     const dt = this.lastT ? Math.max(1 / 120, (data.t - this.lastT) / 1000) : 1 / 30;
@@ -98,7 +125,9 @@ export class HandTracker {
       const lm = slot.f.apply(h.lm, dt);
       const r = readPose(lm, this.cal);
       slot.pinch += (h.pinch - slot.pinch) * 0.6; // light smoothing; hysteresis does the rest
-      out.push({ lm, right: h.right, pose: slot.d.push(r.pose), span: r.span, pinchRatio: r.pinchRatio, pinchDist: slot.pinch });
+      const rel = slot.pinch / Math.max(0.04, h.palm);
+      const indexBend = bend(lm, [5, 6, 7, 8], this.cal.aspect);
+      out.push({ lm, right: h.right, pose: slot.d.push(r.pose), span: r.span, pinchRatio: r.pinchRatio, pinchDist: slot.pinch, pinchRel: rel, indexBend });
     }
     this.hands = out;
   }

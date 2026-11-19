@@ -48,15 +48,54 @@ export function sdRhombi(x: number, y: number, z: number, size: number, soft: nu
   return m + soft * Math.log(sum) - soft * 0.9;
 }
 
+/** Rounded box: half extents b, edge radius r. */
+function sdRoundBox(x: number, y: number, z: number, b: number, r: number) {
+  const qx = Math.abs(x) - b + r, qy = Math.abs(y) - b + r, qz = Math.abs(z) - b + r;
+  return Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - r;
+}
+
+/** A flat diamond: a rhombus (half diagonals bx, by) extruded to half-thickness h, rounded by r. */
+function sdDiamond(x: number, y: number, z: number, bx: number, by: number, h: number, r: number) {
+  bx -= r; by -= r; h -= r;
+  const px = Math.abs(x), py = Math.abs(y);
+  const ndot = (bx - 2 * px) * bx - (by - 2 * py) * by;
+  const t = Math.min(1, Math.max(-1, ndot / (bx * bx + by * by)));
+  const dx = px - 0.5 * bx * (1 - t), dy = py - 0.5 * by * (1 + t);
+  const d2 = Math.hypot(dx, dy) * Math.sign(px * by + py * bx - bx * by);
+  const wz = Math.abs(z) - h;
+  return Math.min(Math.max(d2, wz), 0) + Math.hypot(Math.max(d2, 0), Math.max(wz, 0)) - r;
+}
+
 /**
- * The starting form: a smooth rhombicuboctahedron (squares and triangles,
- * softly rounded). `seed` varies proportions slightly for generated samples.
+ * Starting shapes, as data. Add one with a key, a name, a small line icon
+ * and a distance function; it appears in the Shape menu.
  */
-export function fillLump(vol: Volume, seed = 0) {
+export const SHAPES: { key: string; name: string; icon: string; sdf: (x: number, y: number, z: number) => number }[] = [
+  {
+    key: 'polyhedron', name: 'Polyhedron',
+    icon: '<path d="M8 3h8l5 5v8l-5 5H8l-5-5V8z"/><path d="M8 3l1 5h6l1-5M9 8 3 8M15 8l6 0M9 8v8M15 8v8M3 16h6M15 16h6M9 16l-1 5M15 16l1 5"/>',
+    sdf: (x, y, z) => sdRhombi(x, y, z, 0.42, 0.009),
+  },
+  { key: 'sphere', name: 'Sphere', icon: '<circle cx="12" cy="12" r="9"/><path d="M3 12c3 3 15 3 18 0"/>', sdf: (x, y, z) => Math.hypot(x, y, z) - 0.5 },
+  {
+    key: 'cube', name: 'Cube',
+    icon: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+    sdf: (x, y, z) => sdRoundBox(x, y, z, 0.42, 0.07),
+  },
+  { key: 'diamond', name: 'Diamond', icon: '<path d="M12 2 20 12 12 22 4 12z"/>', sdf: (x, y, z) => sdDiamond(x, y, z, 0.48, 0.7, 0.1, 0.05) },
+];
+export const DEFAULT_SHAPE = 'polyhedron';
+
+/**
+ * Fill the volume with a starting shape. `seed` varies proportions slightly
+ * for generated samples; 0 gives the shape as designed.
+ */
+export function fillLump(vol: Volume, seed = 0, shape = DEFAULT_SHAPE) {
   const r = rng(seed || 1);
   const v = seed ? 0.14 : 0;
   const sx = 1 + (r() - 0.5) * v * 2, sy = 1 + (r() - 0.5) * v * 2, sz = 1 + (r() - 0.5) * v * 2;
-  vol.fill((x, y, z) => sdRhombi(x / sx, y / sy, z / sz, 0.42, 0.009) * Math.min(sx, sy, sz));
+  const f = (SHAPES.find((s) => s.key === shape) ?? SHAPES[0]).sdf;
+  vol.fill((x, y, z) => f(x / sx, y / sy, z / sz) * Math.min(sx, sy, sz));
 }
 
 // ───────────── Samples ─────────────

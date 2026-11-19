@@ -43,7 +43,38 @@ export class Sculptor {
   private b = new Vector3();
   private dir = new Vector3();
   private strokes = new Map<string, Stroke>();
+  /**
+   * End faces of past strokes (local): the tip of each extrusion, the floor
+   * of each pocket. Aiming near one snaps to it, so shaping can continue
+   * cleanly from a piece you already made.
+   */
+  private faces: { P: Vector3; N: Vector3 }[] = [];
   constructor(private atelier: Atelier) {}
+
+  /** Forget remembered faces (the form was replaced). */
+  reset() {
+    this.faces = [];
+  }
+
+  /** The remembered face near a local point, if any. */
+  private snap(P: Vector3) {
+    let best: { P: Vector3; N: Vector3 } | null = null;
+    let bd = this.brush * 1.6;
+    for (const f of this.faces) {
+      const d = f.P.distanceTo(P);
+      if (d < bd) {
+        bd = d;
+        best = f;
+      }
+    }
+    return best;
+  }
+
+  /** Where a grab at this world point would land (snapped to a face if near one). */
+  snapWorld(world: Vector3) {
+    const f = this.snap(this.local(world, new Vector3()));
+    return f ? this.atelier.object.localToWorld(f.P.clone()) : world;
+  }
 
   private get vol() {
     return this.atelier.volume;
@@ -79,9 +110,17 @@ export class Sculptor {
    * - Press sinks the face into a soft, flat pocket; the form holds still.
    */
   beginStroke(id: string, hit: { point: Vector3; dist: number }, kind: StrokeKind) {
-    const P = this.local(hit.point, new Vector3());
-    if (this.vol.sample(P.x, P.y, P.z) > 0.05) return false;
-    const N = this.vol.gradient(P, new Vector3());
+    let P = this.local(hit.point, new Vector3());
+    let N: Vector3;
+    const face = this.snap(P);
+    if (face) {
+      // Continue from a remembered face, along its own direction.
+      P = face.P.clone();
+      N = face.N.clone();
+    } else {
+      if (this.vol.sample(P.x, P.y, P.z) > 0.05) return false;
+      N = this.vol.gradient(P, new Vector3());
+    }
     const s0 = this.atelier.project(hit.point);
     const p0 = this.atelier.pointOnRay(s0.x, s0.y, hit.dist, new Vector3());
     const p1 = this.atelier.pointOnRay(s0.x + 1, s0.y, hit.dist, new Vector3());
@@ -126,11 +165,21 @@ export class Sculptor {
     return this.atelier.object.localToWorld(st.end.clone());
   }
 
+  /** How far a stroke has pulled so far (object units). */
+  strokeAmount(id: string) {
+    return this.strokes.get(id)?.amount ?? 0;
+  }
+
   endStroke(id: string) {
     const st = this.strokes.get(id);
     if (!st) return;
     this.strokes.delete(id);
     this.vol.endStroke(st.vid);
+    // Remember the end face if the stroke made something.
+    if (st.amount > this.brush * 0.4) {
+      this.faces = this.faces.filter((f) => f.P.distanceTo(st.P) > 1e-3);
+      this.faces.push({ P: st.end.clone(), N: st.N.clone() });
+    }
   }
 
   /** How far a stroke can grow along N before leaving the sculpting volume. */

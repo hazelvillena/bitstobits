@@ -12,6 +12,11 @@ import { specimenGeometry } from './geometry';
 import { Bridge, BRIDGE } from './bridge';
 import { traitHex, type TraitKey } from '../ui/tokens';
 
+/**
+ * Linking: every form always joins its closest relative, so nothing you
+ * make is left alone; a second link is added only when that form is also
+ * genuinely alike (above THRESHOLD). Link strength shows how alike.
+ */
 const THRESHOLD = 0.62;
 const MAX_KIN = 2;
 
@@ -41,6 +46,8 @@ interface Link {
    * surface, and carried by the form so the bridge never detaches from it.
    */
   anchor: { pa: Vector3; na: Vector3; pb: Vector3; nb: Vector3 } | null;
+  /** Latest measured anchors; refreshed every few frames, eased toward every frame. */
+  target: { pa: Vector3; na: Vector3; pb: Vector3; nb: Vector3 } | null;
   phase: number;
   }
 
@@ -54,6 +61,9 @@ export class Field {
   onHover: (spec: Specimen | null, kin: { spec: Specimen; k: number; trait: TraitKey }[]) => void = () => {};
 
   private time = 0;
+  private frameNo = 0;
+  /** True while anything is visibly changing; when calm, the field can render less often. */
+  busy = true;
   private half = { w: 4, h: 4 };
   private hovered: Item | null = null;
   private mouse: { x: number; y: number } | null = null;
@@ -140,8 +150,8 @@ export class Field {
       const ranked = this.items
         .filter((b) => b !== a)
         .map((b) => ({ b, k: kinship(a.spec.sig, b.spec.sig) }))
-        .filter((x) => x.k >= THRESHOLD)
         .sort((x, y) => y.k - x.k)
+        .filter((x, i) => i === 0 || x.k >= THRESHOLD)
         .slice(0, MAX_KIN);
       for (const { b, k } of ranked) wanted.set(this.key(a, b), { a, b, k });
     }
@@ -157,7 +167,7 @@ export class Field {
       const bridge = new Bridge(w.a.spec.material ?? 'pearl', w.b.spec.material ?? 'pearl', traitHex[traits[0]?.trait ?? 'volume']);
       this.scene.add(bridge.mesh);
       // The reason for a link is shown in the hover card, not on the canvas.
-      next.push({ a: w.a, b: w.b, k: w.k, traits, born: this.time, bridge, anchor: null, phase: Math.random() * Math.PI * 2 });
+      next.push({ a: w.a, b: w.b, k: w.k, traits, born: this.time, bridge, anchor: null, target: null, phase: Math.random() * Math.PI * 2 });
     }
     for (const l of old.values()) this.disposeLink(l);
     this.links = next;
@@ -247,20 +257,29 @@ export class Field {
     }
 
     this.updateHover(dt);
+    this.busy =
+      this.items.some((a) => a.vel.lengthSq() > 0.0004 || this.time - a.born < 3 || Math.abs(a.focus - (this.hovered && a !== this.hovered && !this.isKin(this.hovered, a) ? 0.35 : 1)) > 0.01) ||
+      this.links.some((l) => this.time - l.born < 3.5);
 
     // Bridges.
     const pa = new Vector3(), pb = new Vector3(), na = new Vector3(), nb = new Vector3();
     const side = new Vector3();
     const ease = 1 - Math.exp(-dt * 3);
-    for (const l of this.links) {
+    this.frameNo++;
+    this.links.forEach((l, li) => {
       const dir = l.b.pos.clone().sub(l.a.pos).normalize();
-      // Find where each form faces the other, in its own space, and ease there.
-      this.support(l.a, dir, pa, na);
-      this.support(l.b, dir.clone().negate(), pb, nb);
-      if (!l.anchor) l.anchor = { pa: pa.clone(), na: na.clone(), pb: pb.clone(), nb: nb.clone() };
+      // Find where each form faces the other, in its own space. Measured every
+      // fourth frame (staggered across links); eased toward every frame.
+      if (!l.target || (this.frameNo + li) % 4 === 0) {
+        this.support(l.a, dir, pa, na);
+        this.support(l.b, dir.clone().negate(), pb, nb);
+        l.target = { pa: pa.clone(), na: na.clone(), pb: pb.clone(), nb: nb.clone() };
+      }
+      const T = l.target;
+      if (!l.anchor) l.anchor = { pa: T.pa.clone(), na: T.na.clone(), pb: T.pb.clone(), nb: T.nb.clone() };
       const A = l.anchor;
-      A.pa.lerp(pa, ease); A.pb.lerp(pb, ease);
-      A.na.lerp(na, ease).normalize(); A.nb.lerp(nb, ease).normalize();
+      A.pa.lerp(T.pa, ease); A.pb.lerp(T.pb, ease);
+      A.na.lerp(T.na, ease).normalize(); A.nb.lerp(T.nb, ease).normalize();
       // Carry the anchors with their forms into world space.
       pa.copy(A.pa); l.a.mesh.localToWorld(pa);
       pb.copy(A.pb); l.b.mesh.localToWorld(pb);
@@ -278,7 +297,7 @@ export class Field {
       const filament = Math.min(l.a.radius, l.b.radius) * (BRIDGE.filament[0] + (BRIDGE.filament[1] - BRIDGE.filament[0]) * strength);
       const sway = Math.sin(this.time * 0.35 + l.phase);
       l.bridge.update(pa, na, pb, nb, l.a.radius * BRIDGE.root, l.b.radius * BRIDGE.root, filament, side, sway, g, focus);
-    }
+    });
 
     // Names beneath forms.
     for (const it of its) {

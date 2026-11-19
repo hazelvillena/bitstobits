@@ -24,7 +24,20 @@
         <header class="pane-head">
           <span class="brand">bits to bits</span>
           <div class="head-right">
+            <div class="view-switch" id="mode-switch" role="radiogroup" aria-label="Input">
+              <span class="view-indicator" aria-hidden="true"></span>
+              <button type="button" role="radio" data-mode="hands" title="Hands (H)">
+                <svg class="lucide" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>
+              </button>
+              <button type="button" role="radio" data-mode="pointer" title="Mouse (H)">
+                <svg class="lucide" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg>
+              </button>
+            </div>
+            <div id="shapes"></div>
             <div id="materials"></div>
+            <button type="button" class="icon-btn" id="btn-help" title="Show tips">
+              <svg class="lucide" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+            </button>
           </div>
         </header>
 
@@ -102,7 +115,10 @@
           <img class="mark" src="/favicon.svg" alt="" width="36" height="36" />
           <h2 id="welcome-title">bits to bits</h2>
           <p>Sculpt small forms with your hands or a mouse. Each one you keep joins a collection and connects to the forms most like it.</p>
-          <button class="btn primary large" id="btn-start" type="button">Start</button>
+          <div class="welcome-actions">
+            <button class="btn primary large" id="btn-start" type="button">Start</button>
+            <button class="btn ghost large" id="btn-skip" type="button">Skip</button>
+          </div>
         </section>
         <section class="welcome-step" data-step="2" hidden>
           <h2>How would you like to sculpt?</h2>
