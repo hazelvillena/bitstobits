@@ -94,7 +94,7 @@ export class Field {
     this.scene.add(mesh);
 
     const nv = spec.mesh.positions.length / 3;
-    const step = Math.max(1, Math.floor(nv / 700));
+    const step = Math.max(1, Math.floor(nv / 1600));
     const sample: number[] = [];
     for (let i = 0; i < nv; i += step) sample.push(i);
 
@@ -172,31 +172,33 @@ export class Field {
     return a.spec.id < b.spec.id ? `${a.spec.id}|${b.spec.id}` : `${b.spec.id}|${a.spec.id}`;
   }
 
-  /** Surface point of `it` furthest along world direction `dir`, and its normal, in the form's mesh space. */
+  /**
+   * Where a connection meets a form: on the line from the form's centre
+   * toward `dir`, at the body's own surface. Among surface points in a
+   * narrow cone around that line, a low-percentile distance from the centre
+   * finds the body itself, ignoring spikes that reach past it (their tips
+   * would leave the connection floating) and openings that dip into it.
+   * Returned in the form's mesh space; the normal is the line itself.
+   */
   private support(it: Item, dir: Vector3, out: Vector3, nOut: Vector3) {
-    const inv = it.mesh.quaternion.clone().invert();
-    const ld = dir.clone().applyQuaternion(inv);
+    const ld = dir.clone().applyQuaternion(it.mesh.quaternion.clone().invert()).normalize();
     const P = it.mesh.geometry.getAttribute('position').array as Float32Array;
-    const N = it.spec.mesh.normals;
-    // Weighted average of the points facing furthest along dir: continuous,
-    // so the anchor slides over the surface instead of jumping.
-    let best = -Infinity;
-    for (const i of it.sample) best = Math.max(best, P[i * 3] * ld.x + P[i * 3 + 1] * ld.y + P[i * 3 + 2] * ld.z);
-    const band = 0.04 / it.mesh.scale.x;
-    let w = 0;
-    out.set(0, 0, 0);
-    nOut.set(0, 0, 0);
-    for (const i of it.sample) {
-      const d = P[i * 3] * ld.x + P[i * 3 + 1] * ld.y + P[i * 3 + 2] * ld.z;
-      if (d < best - band) continue;
-      const wi = 1 - (best - d) / band;
-      out.x += P[i * 3] * wi; out.y += P[i * 3 + 1] * wi; out.z += P[i * 3 + 2] * wi;
-      nOut.x += N[i * 3] * wi; nOut.y += N[i * 3 + 1] * wi; nOut.z += N[i * 3 + 2] * wi;
-      w += wi;
+    const radii: number[] = [];
+    for (const cone of [0.95, 0.85, 0.6]) {
+      radii.length = 0;
+      for (const i of it.sample) {
+        const x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2];
+        const r = Math.hypot(x, y, z);
+        if (r > 1e-6 && (x * ld.x + y * ld.y + z * ld.z) / r > cone) radii.push(r);
+      }
+      if (radii.length >= 6) break;
     }
-    out.divideScalar(w || 1);
-    nOut.normalize();
+    radii.sort((a, b) => a - b);
+    const R = radii.length ? radii[Math.floor(radii.length * 0.3)] : 0;
+    out.copy(ld).multiplyScalar(R);
+    nOut.copy(ld);
   }
+
 
   update(dt: number) {
     this.time += dt;
@@ -265,8 +267,8 @@ export class Field {
       na.copy(A.na).applyQuaternion(l.a.mesh.quaternion);
       nb.copy(A.nb).applyQuaternion(l.b.mesh.quaternion);
       // Align both ends with the line between the forms: a calm, straight span.
-      na.lerp(dir, 0.85).normalize();
-      nb.lerp(dir.clone().negate(), 0.85).normalize();
+      na.lerp(dir, 0.5).normalize();
+      nb.lerp(dir.clone().negate(), 0.5).normalize();
 
       side.crossVectors(dir, new Vector3(0, 0, 1)).normalize();
       const grow = Math.min(1, (this.time - l.born - 0.6) / 2.4);

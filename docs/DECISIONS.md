@@ -2,6 +2,10 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-18 (connections join the body)
+
+**Connections start at the body, not at spike tips.** Anchors used the surface points reaching furthest toward the other form; on spiky forms those were spike tips, or an average of several tips floating in empty space. Now each end sits on the line between the two forms' centres, at the body's own surface: among surface points in a narrow cone around that line, a low-percentile distance from the centre, which ignores spikes reaching past the body and openings dipping into it. The flared root sits inside the body, so every connection grows out of its form.
+
 ## 2026-11-18 (long extrusions, calmer links, fuller samples)
 
 **Long extrusions no longer break.** Rays grazing along a long, thin extrusion ran out of raymarch steps and were discarded, which read as a slice with a floating tip. The march now has more steps, slightly longer strides, and counts a ray that ends very close to the surface as a hit.
