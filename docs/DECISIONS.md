@@ -2,6 +2,12 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-19 (framing the whole volume)
+
+**Long or rotated forms were cut by the canvas edge.** The camera showed about 1.1 units from the centre, while the sculpting volume reaches 0.93 per axis and extrusions can reach about 1.3 diagonally. The camera now backs off until a sphere of radius 1.32 fits vertically (1.15 sideways, so tall panes don't push the form too far), recomputed on every resize. The starting form sits about 20% further out as a result. The camera's near plane was never the issue.
+
+**Fix.** The surface raycast had a 6-unit range; with the camera further back it missed the form entirely. Its range is now bounded only by the volume's box.
+
 ## 2026-11-19 (two-signal pinch)
 
 **Why pinches still failed.** A screenshot showed the pinch dot grey with the fingertips visibly touching: the pinch was never registered. Detection relied only on MediaPipe's 3D world-landmark distance, a learned depth estimate that MediaPipe notes is least accurate at oblique views and under occlusion; side-on, with the tips overlapping from the camera, it can read them as apart. A tight calibration pinch made it stricter still.

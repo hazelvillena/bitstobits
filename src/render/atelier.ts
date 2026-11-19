@@ -94,8 +94,17 @@ export class Atelier {
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
-    // Keep the object comfortably framed in tall and wide panes.
-    this.camera.fov = w / h < 0.8 ? 28 / Math.max(w / h, 0.45) * 0.8 : 28;
+    // Frame the whole working volume, not just the starting form: the
+    // camera backs off until a sphere of radius FRAME fits in both
+    // directions, so long extrusions and rotated forms never run off the
+    // canvas edge. (The volume reaches 0.93 on each axis; extrusions stop
+    // there, so about 1.3 from the centre covers them.)
+    // Slightly less sideways room, so tall panes don't push the form too far away.
+    const FRAME = 1.32, FRAME_X = 1.15;
+    const t = Math.tan((this.camera.fov * Math.PI) / 360);
+    const d = Math.max(FRAME / t, FRAME_X / (t * this.camera.aspect));
+    this.camera.position.set(0, d * 0.045, d);
+    this.camera.lookAt(0, 0, 0);
     this.camera.updateProjectionMatrix();
   }
 

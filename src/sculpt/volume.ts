@@ -163,7 +163,7 @@ export class Volume {
   }
 
   /** Sphere-trace a ray in object space. Returns distance or -1. */
-  raycast(ro: Vector3, rd: Vector3, maxT = 6): number {
+  raycast(ro: Vector3, rd: Vector3, maxT = 100): number {
     // Enter the unit cube first.
     let t0 = 0, t1 = maxT;
     for (const a of ['x', 'y', 'z'] as const) {
