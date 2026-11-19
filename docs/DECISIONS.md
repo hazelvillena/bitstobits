@@ -2,6 +2,26 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-18 (codes, welcome, grid, samples)
+
+**Codes instead of names.** Every kept form gets a six-digit code, shown as two groups (482 913). Older saves derive a stable code from their id.
+
+**Welcome.** A small modal explains the app in two sentences with one Start button, then offers hands or mouse as two cards with Lucide icons. Favicon: a lime polyhedron (`public/favicon.svg`).
+
+**Sculpting gets two thirds.** The default split is 2/3; the saved split key changed so the new default applies.
+
+**Hover no longer jitters.** Hover is sticky (it takes a clear move away to let go), and the form in focus stops drifting and turning.
+
+**Richer samples.** "Add samples" makes three families of three: urchins (spikes, chrome or ultraviolet), coral (curved rounded extrusions, lime or opal), porous forms (bored through, mercury, obsidian or aqua) and buds (large lobes, pearl, opal or lime). Built with the same stroke API as the tools.
+
+**Grid view.** A switch at the top of the collection shows every form as a card with a still render (one small offscreen renderer, cached), its code and material.
+
+**Calmer calibration and a finer hand.** One longer hold (2.4 s), a smoothly easing ring that forgives slips, crossfading text and a soft exit. The hand drawing is finer and eases toward each frame.
+
+**Sleeker buttons.** 28 px tall, 14 px padding.
+
+**Fix.** A style cleanup had removed the empty-state and hover card base rules; restored.
+
 ## 2026-11-18 (materials system, turning extrude, polyhedron)
 
 **Clicks on the UI were being swallowed.** Mouse sculpting captured the pointer on the whole sculpt pane, so real clicks on the material switch and toolbar never reached them. Sculpting now listens on the canvas only.

@@ -30,11 +30,14 @@ Type scale: 10 / 11.5 / 13 / 15 / 30 px, display `clamp(44px, 5vw, 72px)` at wei
 
 ## Components
 
-- **Buttons**: pill shaped. Primary is solid ink; ghost is a hairline.
+- **Buttons**: sleek pills, 28 px tall with 14 px side padding (34 px for the large variant). Primary is solid ink; ghost is a hairline. They press down 1 px.
+- **Welcome**: a small popover over a soft blur: the lime polyhedron mark, the name, two sentences and Start; then two choice cards with Lucide line icons (camera, mouse pointer).
+- **View switch**: two Lucide icons (network, grid) with a sliding ink pill.
+- **Grid cards**: a still render of each form, its code and material; cards rise in with a short stagger.
 - **Toolbar**: a translucent pill of tool buttons (glyph, name, key). A solid ink pill slides to the selected tool with a slight spring. Beside it, the brush size: minus, a dot that grows, a number that counts to its new value, plus. Hand gestures live in tooltips.
 - **Popover**: the one floating surface (`.popover`): warm translucent fill, blur, 14 px radius, a soft two-layer shadow. Used by the material dropdown and the hover card.
 - **Material dropdown**: a quiet pill trigger with the current swatch; the list opens with a short spring (scale and fade) and supports arrow keys and Escape.
-- **Hand overlay**: joints as small open circles, bones as hairlines, and dimension lines with millimetre lengths during calibration. Engaged fingertips fill with signal and pulse.
+- **Hand overlay**: bones as hairlines that fade from wrist to fingertips, small solid joints, a soft signal halo on each fingertip, and faint dimension lines during calibration. The drawing eases toward each camera frame, so it glides rather than snaps.
 - **Hover card**: a popover beside the hovered form (flips side near edges, follows the form) with 20 px padding: the name and form number, one radar chart overlaying the form's traits (ink) on its closest relative's (lime), a two-item legend and how alike they are.
 - **Bridges**: a flared root of each form's own matter easing into one fine filament with a slow S-curve, and a fine trait-colour band at the middle. They grow from both sides and recede when another form is in focus. Shape constants live in `BRIDGE` (`src/field/bridge.ts`).
 

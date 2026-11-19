@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>bits to bits</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="description" content="Sculpt forms with your hands; each one you keep finds its relatives." />
+    <meta name="theme-color" content="#f1f3f4" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -22,7 +25,6 @@
           <span class="brand">bits to bits</span>
           <div class="head-right">
             <div id="materials"></div>
-            <span class="dim num" id="specimen-no">Form 1</span>
           </div>
         </header>
 
@@ -40,17 +42,6 @@
         </div>
 
         <div class="status" id="status" hidden></div>
-
-        <div class="sheet intro" id="intro">
-          <div class="sheet-inner">
-            <h2 class="display">bits to bits</h2>
-            <p class="lead">Shape a form with your hands. Every form you keep finds its relatives.</p>
-            <div class="actions">
-              <button class="btn primary large" id="btn-calibrate">Start with camera</button>
-              <button class="btn ghost large" id="btn-pointer">Use mouse instead</button>
-            </div>
-          </div>
-        </div>
 
         <div class="calibration" id="calibration" hidden>
           <div class="calib-head">
@@ -70,10 +61,22 @@
 
         <header class="pane-head">
           <span class="brand">Collection</span>
-          <span class="dim num" id="field-count">Empty</span>
+          <div class="head-right">
+            <span class="dim num" id="field-count">Empty</span>
+            <div class="view-switch" role="radiogroup" aria-label="View">
+              <span class="view-indicator" aria-hidden="true"></span>
+              <button type="button" role="radio" aria-checked="true" data-view="network" title="Network">
+                <svg class="lucide" viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>
+              </button>
+              <button type="button" role="radio" aria-checked="false" data-view="grid" title="Grid">
+                <svg class="lucide" viewBox="0 0 24 24" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
+              </button>
+            </div>
+          </div>
         </header>
 
         <aside class="inspector popover" id="inspector" hidden></aside>
+        <div class="grid-view" id="grid-view" hidden><div class="grid" id="grid"></div></div>
 
         <footer class="pane-foot">
           <span></span>
@@ -86,6 +89,32 @@
         <div class="empty" id="field-empty"><p>Forms you keep will gather here.</p></div>
       </section>
     </main>
+    <!-- Welcome -->
+    <div class="welcome" id="welcome">
+      <div class="welcome-card popover" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+        <section class="welcome-step" data-step="1">
+          <img class="mark" src="/favicon.svg" alt="" width="36" height="36" />
+          <h2 id="welcome-title">bits to bits</h2>
+          <p>Sculpt small forms with your hands or a mouse. Each one you keep joins a collection and connects to the forms most like it.</p>
+          <button class="btn primary large" id="btn-start" type="button">Start</button>
+        </section>
+        <section class="welcome-step" data-step="2" hidden>
+          <h2>How would you like to sculpt?</h2>
+          <div class="choices">
+            <button class="choice" id="btn-calibrate" type="button">
+              <svg class="lucide" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+              <span class="t">Hands</span>
+              <span class="d">Uses your camera</span>
+            </button>
+            <button class="choice" id="btn-pointer" type="button">
+              <svg class="lucide" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4.1 12 6"/><path d="m5.1 8-2.9-.8"/><path d="m6 12-1.9 2"/><path d="M7.2 2.2 8 5.1"/><path d="M9.037 9.69a.498.498 0 0 1 .653-.653l11 4.5a.5.5 0 0 1-.074.949l-4.349 1.041a1 1 0 0 0-.74.739l-1.04 4.35a.5.5 0 0 1-.95.074z"/></svg>
+              <span class="t">Mouse</span>
+              <span class="d">Click and drag</span>
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

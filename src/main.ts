@@ -2,7 +2,7 @@ import './ui/base.css';
 import { Atelier } from './render/atelier';
 import { Sculptor, type ToolKind } from './sculpt/sculptor';
 import { PointerInput } from './input/pointer';
-import { fillLump, sculptRandom } from './sculpt/seed';
+import { ARCHETYPES, fillLump, sculptSample, type Archetype } from './sculpt/seed';
 import { Volume } from './sculpt/volume';
 import { Chrome } from './ui/chrome';
 import { HandOverlay } from './ui/handOverlay';
@@ -10,9 +10,10 @@ import { HandTracker } from './input/handTracker';
 import { HandInput } from './input/handInput';
 import { Calibration } from './input/calibration';
 import { Field } from './field/field';
-import { createSpecimen, loadSpecimens, saveSpecimens, type Specimen } from './specimen/specimen';
+import { codeOf, createSpecimen, loadSpecimens, saveSpecimens, type Specimen } from './specimen/specimen';
 import { traitLabel } from './ui/tokens';
 import { radarSVG } from './ui/radar';
+import { Thumbnailer } from './field/thumbs';
 import { initDivider } from './ui/divider';
 import { DEFAULT_MATERIAL, MATERIALS, preset, swatch } from './render/materials';
 import { Dropdown } from './ui/dropdown';
@@ -65,7 +66,7 @@ setMaterial(preset(savedMaterial).key);
 
 // ───── Intro ─────
 function begin(kind: 'hands' | 'pointer') {
-  $('intro').classList.add('gone');
+  $('welcome').classList.add('gone');
   input = kind;
   chrome.setInputMode(kind);
   if (kind === 'pointer') {
@@ -75,6 +76,11 @@ function begin(kind: 'hands' | 'pointer') {
   }
 }
 
+$('btn-start').addEventListener('click', () => {
+  $('welcome').querySelector<HTMLElement>('[data-step="1"]')!.hidden = true;
+  $('welcome').querySelector<HTMLElement>('[data-step="2"]')!.hidden = false;
+  $('btn-calibrate').focus();
+});
 $('btn-pointer').addEventListener('click', () => begin('pointer'));
 $('btn-calibrate').addEventListener('click', async () => {
   begin('hands');
@@ -144,30 +150,36 @@ async function accept() {
   field.add(spec, true);
   updateCount();
   saveSpecimens(specimens);
-  chrome.setSpecimenNumber(specimens.length + 1);
   startOver();
   setTimeout(() => (accepting = false), 900);
 }
 
 // ───── Collection ─────
 function updateCount() {
+  if (view === 'grid') renderGrid();
   const n = specimens.length;
   $('field-count').textContent = n === 0 ? 'Empty' : n === 1 ? '1 form' : `${n} forms`;
   $('field-empty').classList.toggle('gone', n > 0);
 }
 
+// Samples: three families, a few forms each, so the collection shows
+// varied groups that recognise each other.
 $('btn-seed').addEventListener('click', () => {
   const tmp = new Volume(128);
-  let left = 6;
+  const families = (Object.keys(ARCHETYPES) as Archetype[]).sort(() => Math.random() - 0.5).slice(0, 3);
+  const queue: Archetype[] = families.flatMap((f) => [f, f, f]);
   const one = () => {
-    sculptRandom(tmp, Math.floor(Math.random() * 1e6));
-    const spec = createSpecimen(tmp, specimens.length + 1, MATERIALS[Math.floor(Math.random() * (MATERIALS.length - 1))].key);
+    const kind = queue.shift();
+    if (!kind) {
+      saveSpecimens(specimens);
+      return;
+    }
+    const material = sculptSample(tmp, kind, Math.floor(Math.random() * 1e6));
+    const spec = createSpecimen(tmp, specimens.length + 1, material);
     specimens.push(spec);
     field.add(spec, true);
     updateCount();
-    chrome.setSpecimenNumber(specimens.length + 1);
-    if (--left > 0) setTimeout(one, 260);
-    else saveSpecimens(specimens);
+    setTimeout(one, 180);
   };
   one();
 });
@@ -176,7 +188,6 @@ $('btn-clear').addEventListener('click', () => {
   field.clear();
   updateCount();
   saveSpecimens(specimens);
-  chrome.setSpecimenNumber(1);
 });
 
 const inspector = $('inspector');
@@ -188,11 +199,11 @@ field.onHover = (spec, kin) => {
   // One chart: this form over its closest relative, so the overlap reads.
   const top = kin[0];
   const legend = top
-    ? `<div class="legend"><span><i class="self"></i>${spec.name}</span><span><i class="kin"></i>${top.spec.name}</span></div>
+    ? `<div class="legend"><span><i class="self"></i>${codeOf(spec)}</span><span><i class="kin"></i>${codeOf(top.spec)}</span></div>
        <div class="match"><span>Alike by ${traitLabel[top.trait].toLowerCase()}</span><b class="num">${Math.round(top.k * 100)}%</b></div>`
     : `<div class="match"><span>No relatives yet</span></div>`;
   card.placed = false;
-  inspector.innerHTML = `<header><h3>${spec.name}</h3><span class="sub num">Form ${spec.no}</span></header>${radarSVG(spec.sig, top?.spec.sig)}${legend}`;
+  inspector.innerHTML = `<header><h3 class="num">${codeOf(spec)}</h3><span class="sub">${preset(spec.material).name}</span></header>${radarSVG(spec.sig, top?.spec.sig)}${legend}`;
   inspector.hidden = false;
 };
 
@@ -200,7 +211,6 @@ loadSpecimens().then((list) => {
   specimens = list;
   for (const s of list) field.add(s, false);
   updateCount();
-  chrome.setSpecimenNumber(specimens.length + 1);
 });
 
 // The card sits beside the hovered form and follows it.
@@ -224,6 +234,34 @@ function placeInspector(dt: number) {
   card.y += (y - card.y) * k;
   inspector.style.transform = `translate(${card.x.toFixed(1)}px, ${card.y.toFixed(1)}px)`;
 }
+
+// ───── Grid view ─────
+const thumbs = new Thumbnailer();
+const viewSwitch = document.querySelector<HTMLElement>('.view-switch')!;
+let view: 'network' | 'grid' = 'network';
+function setView(v: 'network' | 'grid') {
+  view = v;
+  viewSwitch.dataset.view = v;
+  for (const b of viewSwitch.querySelectorAll<HTMLButtonElement>('button')) b.setAttribute('aria-checked', String(b.dataset.view === v));
+  $('grid-view').hidden = v !== 'grid';
+  if (v === 'grid') {
+    inspector.hidden = true;
+    renderGrid();
+  }
+}
+function renderGrid() {
+  const grid = $('grid');
+  grid.innerHTML = '';
+  // Newest first; cards stagger in.
+  [...specimens].reverse().forEach((spec, i) => {
+    const card = document.createElement('figure');
+    card.className = 'card';
+    card.style.animationDelay = `${Math.min(i, 16) * 35}ms`;
+    card.innerHTML = `<img alt="Form ${codeOf(spec)}" src="${thumbs.get(spec)}" /><figcaption class="meta"><span class="code">${codeOf(spec)}</span><span class="mat">${preset(spec.material).name}</span></figcaption>`;
+    grid.appendChild(card);
+  });
+}
+for (const b of viewSwitch.querySelectorAll<HTMLButtonElement>('button')) b.addEventListener('click', () => setView(b.dataset.view as 'network' | 'grid'));
 
 // ───── Loop ─────
 const ro = new ResizeObserver(() => {
@@ -257,7 +295,7 @@ function frame(now: number) {
   atelier.update(dt);
   atelier.render();
   field.update(dt);
-  field.render();
+  if (view === 'network') field.render();
   placeInspector(dt);
 
   // Adaptive resolution: protect the frame rate first.
@@ -282,7 +320,7 @@ if (import.meta.env.DEV) {
     b2b: {
       tracker, hands, atelier, overlay, pointer,
       useHands() {
-        $('intro').classList.add('gone');
+        $('welcome').classList.add('gone');
         input = 'hands';
         mode = 'sculpt';
         tracker.ready = true;

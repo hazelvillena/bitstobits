@@ -1,5 +1,6 @@
 import { Vector3 } from 'three';
 import { Volume } from './volume';
+import { ROUNDED, SPIKE, taper, type Profile } from './profiles';
 
 export function rng(seed: number) {
   let s = seed >>> 0 || 1;
@@ -58,41 +59,87 @@ export function fillLump(vol: Volume, seed = 0) {
   vol.fill((x, y, z) => sdRhombi(x / sx, y / sy, z / sz, 0.42, 0.009) * Math.min(sx, sy, sz));
 }
 
-/** Procedurally "sculpt" a specimen, for seeding the field without hands. */
-export function sculptRandom(vol: Volume, seed: number) {
+// ───────────── Samples ─────────────
+
+/** Families of generated forms. Each has a gesture and a material family. */
+export const ARCHETYPES = {
+  urchin: { materials: ['chrome', 'ultraviolet'] },
+  coral: { materials: ['lime', 'opal'] },
+  porous: { materials: ['mercury', 'obsidian', 'aqua'] },
+  bud: { materials: ['pearl', 'opal', 'lime'] },
+} as const;
+export type Archetype = keyof typeof ARCHETYPES;
+
+/** Distance from the centre to the surface along a unit direction. */
+function surfaceAlong(vol: Volume, d: Vector3) {
+  let lo = 0, hi = 0.93;
+  for (let i = 0; i < 20; i++) {
+    const m = (lo + hi) / 2;
+    if (vol.sample(d.x * m, d.y * m, d.z * m) < 0) lo = m;
+    else hi = m;
+  }
+  return lo;
+}
+
+function randomDir(r: () => number, out = new Vector3()) {
+  const u = r() * 2 - 1, a = r() * Math.PI * 2, s = Math.sqrt(1 - u * u);
+  return out.set(Math.cos(a) * s, u, Math.sin(a) * s);
+}
+
+/** Grow one stroke out of the surface along `dir` (optionally bending). */
+function grow(vol: Volume, dir: Vector3, len: number, r: number, profile: Profile, bend?: Vector3) {
+  const d = dir.clone().normalize();
+  const P = d.clone().multiplyScalar(surfaceAlong(vol, d));
+  const start = P.clone().addScaledVector(d, -r * 0.9);
+  const end = P.clone().addScaledVector(d, len);
+  if (bend) end.addScaledVector(bend, len * 0.5);
+  const ctrl = P.clone().addScaledVector(d, len * 0.55);
+  const path: Vector3[] = [];
+  for (let i = 0; i <= 12; i++) {
+    const t = i / 12, u = 1 - t;
+    path.push(new Vector3().addScaledVector(start, u * u).addScaledVector(ctrl, 2 * u * t).addScaledVector(end, t * t));
+  }
+  const id = vol.beginStroke();
+  vol.setStroke(id, { path, radii: taper(path.length, r, profile), sign: 1, blend: r * profile.blend });
+  vol.endStroke(id);
+}
+
+/** Bore a smooth hole straight through the form. */
+function pierce(vol: Volume, dir: Vector3, offset: Vector3, r: number) {
+  const a = dir.clone().multiplyScalar(-1.1).add(offset);
+  const b = dir.clone().multiplyScalar(1.1).add(offset);
+  vol.capsule(a, b, r, r, 0.05, -1, 0.15, 0);
+}
+
+/** Generate one sample of a family. Returns its material. */
+export function sculptSample(vol: Volume, kind: Archetype, seed: number): string {
   fillLump(vol, seed);
   const r = rng(seed * 7 + 3);
-  const a = new Vector3(), b = new Vector3(), dir = new Vector3();
-  const style = r();
-
-  // Pulls: tendrils outward.
-  const pulls = style < 0.4 ? 1 + Math.floor(r() * 3) : Math.floor(r() * 2);
-  for (let i = 0; i < pulls; i++) {
-    dir.set(r() - 0.5, r() - 0.5, r() - 0.5).normalize();
-    a.copy(dir).multiplyScalar(0.3);
-    b.copy(dir).multiplyScalar(0.6 + r() * 0.22);
-    vol.capsule(a, b, 0.15, 0.07 + r() * 0.05, 0.08, 1, -0.25, 0);
-  }
-  // Drills: apertures through the mass.
-  const drills = style > 0.55 ? 1 + Math.floor(r() * 3) : Math.floor(r() * 1.4);
-  for (let i = 0; i < drills; i++) {
-    dir.set(r() - 0.5, (r() - 0.5) * 0.6, r() - 0.5).normalize();
-    const off = new Vector3(r() - 0.5, r() - 0.5, r() - 0.5).multiplyScalar(0.25);
-    a.copy(dir).multiplyScalar(-1.1).add(off);
-    b.copy(dir).multiplyScalar(1.1).add(off);
-    vol.capsule(a, b, 0.07 + r() * 0.04, 0.07 + r() * 0.04, 0.03, -1, 0.15, 0);
-  }
-  // Presses: flattening and densifying.
-  const presses = Math.floor(r() * 3);
-  for (let i = 0; i < presses; i++) {
-    dir.set(r() - 0.5, r() - 0.5, r() - 0.5).normalize();
-    a.copy(dir).multiplyScalar(0.62);
-    vol.sphere(a, 0.24, 0.12, -1, 0.45);
-  }
-  // A little smoothing.
-  for (let i = 0; i < 4; i++) {
-    a.set(r() - 0.5, r() - 0.5, r() - 0.5).multiplyScalar(0.8);
-    vol.smooth(a, 0.35, 0.6);
+  const dir = new Vector3(), side = new Vector3();
+  if (kind === 'urchin') {
+    const n = 6 + Math.floor(r() * 5);
+    for (let i = 0; i < n; i++) grow(vol, randomDir(r, dir), 0.22 + r() * 0.2, 0.06 + r() * 0.035, SPIKE);
+  } else if (kind === 'coral') {
+    const n = 3 + Math.floor(r() * 3);
+    for (let i = 0; i < n; i++) {
+      randomDir(r, dir);
+      side.crossVectors(dir, randomDir(r, new Vector3())).normalize();
+      grow(vol, dir, 0.2 + r() * 0.22, 0.09 + r() * 0.05, ROUNDED, side);
+    }
+  } else if (kind === 'porous') {
+    const n = 2 + Math.floor(r() * 3);
+    for (let i = 0; i < n; i++) {
+      const off = randomDir(r, new Vector3()).multiplyScalar(r() * 0.18);
+      pierce(vol, randomDir(r, dir), off, 0.08 + r() * 0.05);
+    }
+    for (let i = 0; i < 3; i++) vol.smooth(randomDir(r, dir).multiplyScalar(0.3), 0.3, 0.5);
+  } else {
+    // Bud: one or two generous rounded lobes and a small opening.
+    const n = 1 + Math.floor(r() * 2);
+    for (let i = 0; i < n; i++) grow(vol, randomDir(r, dir), 0.25 + r() * 0.15, 0.15 + r() * 0.05, ROUNDED);
+    if (r() > 0.4) pierce(vol, randomDir(r, dir), new Vector3(), 0.07);
   }
   vol.heat.fill(0);
+  const mats = ARCHETYPES[kind].materials;
+  return mats[Math.floor(r() * mats.length)];
 }

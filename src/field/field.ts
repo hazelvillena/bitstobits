@@ -1,15 +1,14 @@
 import {
-  BufferAttribute,
-  BufferGeometry,
   Mesh,
   PerspectiveCamera,
   Scene,
   Vector3,
   WebGLRenderer,
 } from 'three';
-import type { Specimen } from '../specimen/specimen';
+import { codeOf, type Specimen } from '../specimen/specimen';
 import { kinship, sharedTraits } from '../specimen/signature';
 import { createSpecimenMaterial } from './specimenMaterial';
+import { specimenGeometry } from './geometry';
 import { Bridge, BRIDGE } from './bridge';
 import { traitHex, type TraitKey } from '../ui/tokens';
 
@@ -86,19 +85,11 @@ export class Field {
   }
 
   add(spec: Specimen, fromSeam = true) {
-    const geo = new BufferGeometry();
-    geo.setAttribute('position', new BufferAttribute(spec.mesh.positions, 3));
-    geo.setAttribute('normal', new BufferAttribute(spec.mesh.normals, 3));
-    geo.setAttribute('aCurv', new BufferAttribute(spec.mesh.curvature, 1));
-    geo.setAttribute('aComp', new BufferAttribute(spec.mesh.compression, 1));
-    geo.setIndex(new BufferAttribute(spec.mesh.indices, 1));
-    geo.computeBoundingSphere();
-    const bs = geo.boundingSphere!;
-    geo.translate(-bs.center.x, -bs.center.y, -bs.center.z);
-    const mat = createSpecimenMaterial(spec.material ?? 'pearl');
+    const { geo, radius: r0 } = specimenGeometry(spec);
+    const mat = createSpecimenMaterial(spec.material);
     const mesh = new Mesh(geo, mat);
     const radius = 0.5 * (0.85 + spec.sig.volume * 0.3);
-    mesh.scale.setScalar(radius / bs.radius);
+    mesh.scale.setScalar(radius / r0);
     mesh.rotation.set(Math.random() * 0.6, Math.random() * Math.PI * 2, 0);
     this.scene.add(mesh);
 
@@ -109,7 +100,7 @@ export class Field {
 
     const label = document.createElement('div');
     label.className = 'tag specimen';
-    label.textContent = spec.name;
+    label.textContent = codeOf(spec);
     this.labels.appendChild(label);
 
     const pos = fromSeam
@@ -243,10 +234,11 @@ export class Field {
       l.b.vel.addScaledVector(d, -dt);
     }
     for (const a of its) {
-      a.vel.multiplyScalar(Math.exp(-dt * 1.8));
+      // The form in focus holds still while you look at it.
+      a.vel.multiplyScalar(Math.exp(-dt * (a === this.hovered ? 12 : 1.8)));
       a.pos.addScaledVector(a.vel, dt);
       a.mesh.position.copy(a.pos);
-      a.mesh.rotateY(a.spin * dt);
+      if (a !== this.hovered) a.mesh.rotateY(a.spin * dt);
       const age = Math.min(1, (this.time - a.born) / 1.4);
       const e = 1 - Math.pow(1 - age, 3);
       a.mat.uniforms.uOpacity.value = e;
@@ -301,16 +293,24 @@ export class Field {
   }
 
   private updateHover(dt: number) {
+    // Sticky hover: the current form keeps focus until the pointer is
+    // clearly away from it, so drifting edges never flicker the card.
     let best: Item | null = null;
     if (this.mouse) {
-      let bd = Infinity;
-      for (const it of this.items) {
+      const dist = (it: Item) => {
         const p = this.project(it.pos);
-        const d = Math.hypot(p.x - this.mouse.x, p.y - this.mouse.y);
-        const r = this.pixelRadius(it) + 12;
-        if (d < r && d < bd) {
-          bd = d;
-          best = it;
+        return Math.hypot(p.x - this.mouse!.x, p.y - this.mouse!.y);
+      };
+      const cur = this.hovered && this.items.includes(this.hovered) ? this.hovered : null;
+      if (cur && dist(cur) < this.pixelRadius(cur) + 36) best = cur;
+      else {
+        let bd = Infinity;
+        for (const it of this.items) {
+          const d = dist(it);
+          if (d < this.pixelRadius(it) + 10 && d < bd) {
+            bd = d;
+            best = it;
+          }
         }
       }
     }

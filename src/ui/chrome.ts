@@ -129,10 +129,6 @@ export class Chrome {
     this.sizeRaf = requestAnimationFrame(tick);
   }
 
-  setSpecimenNumber(n: number) {
-    $('specimen-no').textContent = `Form ${n}`;
-  }
-
   setAcceptProgress(p: number) {
     const ring = $('accept-ring');
     ring.hidden = p <= 0;

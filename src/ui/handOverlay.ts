@@ -31,6 +31,12 @@ export class PaneMapping {
 }
 
 /** Draws the measured hand: nodes, bones, and (in calibration) dimensions. */
+/** 0 at the wrist and knuckles … 1 at the fingertips. */
+function depthInFinger(i: number) {
+  if (i === 0) return 0;
+  return ((i - 1) % 4) / 3;
+}
+
 export class HandOverlay {
   private ctx: CanvasRenderingContext2D;
   private dpr = 1;
@@ -54,12 +60,28 @@ export class HandOverlay {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
+  // Display-only easing of landmarks: the drawing glides instead of
+  // snapping to each camera frame (interaction still uses the raw data).
+  private shown = new Map<boolean, Float32Array>();
+
   draw(hands: HandFrame[], mode: OverlayMode, dt: number, mmPerUnit: number, active?: Map<HandFrame, HandActivity>) {
     this.t += dt;
     const c = this.ctx;
     this.clear();
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    hands.forEach((h, hi) => this.drawHand(h, mode, hi === 0, mmPerUnit, active?.get(h)));
+    const k = 1 - Math.exp(-dt * (mode === 'calibrate' ? 9 : 16));
+    const seen = new Set<boolean>();
+    hands.forEach((h, hi) => {
+      seen.add(h.right);
+      let s = this.shown.get(h.right);
+      if (!s) {
+        s = h.lm.slice();
+        this.shown.set(h.right, s);
+      }
+      for (let i = 0; i < 63; i++) s[i] += (h.lm[i] - s[i]) * k;
+      this.drawHand({ ...h, lm: s }, mode, hi === 0, mmPerUnit, active?.get(h));
+    });
+    for (const key of [...this.shown.keys()]) if (!seen.has(key)) this.shown.delete(key);
   }
 
   private drawHand(h: HandFrame, mode: OverlayMode, primary: boolean, mmPerUnit: number, act?: HandActivity) {
@@ -68,40 +90,51 @@ export class HandOverlay {
     const X = (i: number) => m.x(h.lm[i * 3]);
     const Y = (i: number) => m.y(h.lm[i * 3 + 1]);
     const cal = mode === 'calibrate';
+    const strength = cal ? 1 : 0.7;
 
-    // Palm plane, lightly filled.
+    // Palm: a whisper of fill.
     c.beginPath();
     [0, 1, 5, 9, 13, 17].forEach((i, k) => (k ? c.lineTo(X(i), Y(i)) : c.moveTo(X(i), Y(i))));
     c.closePath();
-    c.fillStyle = `rgba(${INK}, ${cal ? 0.045 : 0.03})`;
+    c.fillStyle = `rgba(${INK}, ${0.035 * strength})`;
     c.fill();
 
-    // Bones.
-    c.lineWidth = 1;
-    c.strokeStyle = `rgba(${INK}, ${cal ? 0.5 : 0.32})`;
-    c.beginPath();
+    // Bones: hairlines that fade from the wrist out to the fingertips.
+    c.lineCap = 'round';
     for (const [a, b] of BONES) {
+      const g = c.createLinearGradient(X(a), Y(a), X(b), Y(b));
+      const fa = 0.14 + 0.3 * depthInFinger(a), fb = 0.14 + 0.3 * depthInFinger(b);
+      g.addColorStop(0, `rgba(${INK}, ${fa * strength})`);
+      g.addColorStop(1, `rgba(${INK}, ${fb * strength})`);
+      c.strokeStyle = g;
+      c.lineWidth = 0.9;
+      c.beginPath();
       c.moveTo(X(a), Y(a));
       c.lineTo(X(b), Y(b));
+      c.stroke();
     }
-    c.stroke();
 
     // Dimension lines (calibration only, primary hand).
     if (cal && primary) {
       for (const f of FINGERS) this.dimension(h, f.joints[0], f.joints[3], mmPerUnit, X, Y);
     }
 
-    // Joints.
+    // Joints: small solid points; fingertips get a soft halo.
     for (let i = 0; i < 21; i++) {
       const tip = TIPS.includes(i);
-      const r = tip ? 4 : i === 0 ? 3.5 : 2.4;
+      if (tip) {
+        const halo = c.createRadialGradient(X(i), Y(i), 0, X(i), Y(i), 12);
+        halo.addColorStop(0, `rgba(169, 184, 46, ${0.28 * strength})`);
+        halo.addColorStop(1, 'rgba(169, 184, 46, 0)');
+        c.fillStyle = halo;
+        c.beginPath();
+        c.arc(X(i), Y(i), 12, 0, Math.PI * 2);
+        c.fill();
+      }
       c.beginPath();
-      c.arc(X(i), Y(i), r, 0, Math.PI * 2);
-      c.fillStyle = '#f3f1ec';
+      c.arc(X(i), Y(i), tip ? 2.6 : i === 0 ? 2.2 : 1.5, 0, Math.PI * 2);
+      c.fillStyle = `rgba(${INK}, ${(tip ? 0.75 : 0.45) * strength})`;
       c.fill();
-      c.lineWidth = 1;
-      c.strokeStyle = `rgba(${INK}, ${cal ? 0.85 : 0.55})`;
-      c.stroke();
     }
 
     // What the hand is doing right now, in plain words beside the wrist.
@@ -157,8 +190,8 @@ export class HandOverlay {
     const nx = dy, ny = -dx; // offset side
     const off = 16;
     const x1 = ax + nx * off, y1 = ay + ny * off, x2 = bx + nx * off, y2 = by + ny * off;
-    c.strokeStyle = `rgba(${INK}, 0.38)`;
-    c.lineWidth = 0.75;
+    c.strokeStyle = `rgba(${INK}, 0.22)`;
+    c.lineWidth = 0.6;
     c.beginPath();
     c.moveTo(x1, y1);
     c.lineTo(x2, y2);
@@ -182,8 +215,8 @@ export class HandOverlay {
     if (ang > Math.PI / 2) ang -= Math.PI;
     if (ang < -Math.PI / 2) ang += Math.PI;
     c.rotate(ang);
-    c.font = '500 9.5px "Instrument Sans", sans-serif';
-    c.fillStyle = `rgba(${INK}, 0.7)`;
+    c.font = '500 9px "Instrument Sans", sans-serif';
+    c.fillStyle = `rgba(${INK}, 0.5)`;
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     c.fillText(`${mm} mm`, 0, 0);

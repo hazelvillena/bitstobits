@@ -7,7 +7,7 @@ type Step = { pose: 'open'; title: string; sub: string; label: string; hold: num
 
 const STEPS: Step[] = [
   {
-    pose: 'open', label: 'Measuring', hold: 1.4,
+    pose: 'open', label: 'Measuring', hold: 2.4,
     title: 'Hold up your hand', sub: "Open, palm facing the screen, about an arm's length away.",
     glyph: '<path d="M28 42 V24 M23 40 V20 M33 40 V20 M38 40 V24 M28 42 C20 42 18 36 18 30 M38 32 C38 40 34 44 28 44"/>',
   },
@@ -21,6 +21,7 @@ export class Calibration {
   private held = 0;
   private samples = { span: [] as number[], openPinch: [] as number[], index: [] as number[] };
   private items: HTMLLIElement[] = [];
+  private shownRing = 0;
 
   constructor(private tracker: HandTracker) {
     const list = $('poses');
@@ -39,6 +40,7 @@ export class Calibration {
     this.held = 0;
     this.samples = { span: [], openPinch: [], index: [] };
     $('calibration').hidden = false;
+    this.shownRing = 0;
     $('hand-signature').hidden = true;
     this.items.forEach((li) => li.classList.remove('done', 'current'));
     this.show();
@@ -46,8 +48,8 @@ export class Calibration {
 
   private show() {
     const s = STEPS[this.i];
-    $('calib-title').textContent = s.title;
-    $('calib-sub').textContent = s.sub;
+    swapText('calib-title', s.title);
+    swapText('calib-sub', s.sub);
     this.items.forEach((li, k) => li.classList.toggle('current', k === this.i));
   }
 
@@ -75,8 +77,10 @@ export class Calibration {
         }
       }
     }
-    this.held = ok ? this.held + dt : Math.max(0, this.held - dt * 2);
-    this.setRing(this.i, Math.min(1, this.held / step.hold));
+    // Forgiving: losing the pose for a moment only eases the ring back.
+    this.held = ok ? this.held + dt : Math.max(0, this.held - dt * 0.6);
+    this.shownRing += (Math.min(1, this.held / step.hold) - this.shownRing) * (1 - Math.exp(-dt * 6));
+    this.setRing(this.i, this.shownRing);
     if (this.held >= step.hold) {
       this.items[this.i].classList.add('done');
       this.i++;
@@ -105,12 +109,26 @@ export class Calibration {
       <div class="row"><span>Index finger</span><b>${indexMm} mm</b></div>
 `;
     sig.hidden = false;
-    $('calib-title').textContent = 'Calibrated';
-    $('calib-sub').textContent = 'Pick a tool with 1 to 5. Point at the form, pinch to act.';
+    swapText('calib-title', 'Calibrated');
+    swapText('calib-sub', 'Pick a tool with 1 to 5. Point at the form, pinch to act.');
     this.active = false;
     setTimeout(() => {
-      $('calibration').hidden = true;
-      this.onDone();
-    }, 2200);
+      $('calibration').classList.add('leaving');
+      setTimeout(() => {
+        $('calibration').hidden = true;
+        $('calibration').classList.remove('leaving');
+        this.onDone();
+      }, 600);
+      }, 2600);
   }
+}
+
+/** Crossfade a text element to new content. */
+function swapText(id: string, text: string) {
+  const el = $(id);
+  if (el.textContent === text) return;
+  el.classList.remove('swap');
+  void el.offsetWidth;
+  el.textContent = text;
+  el.classList.add('swap');
 }

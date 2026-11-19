@@ -1,6 +1,6 @@
 /** Draggable divider between the two panes. Position is remembered. */
 export function initDivider(stage: HTMLElement, seam: HTMLElement) {
-  const KEY = 'b2b.split';
+  const KEY = 'b2b.split.v2';
   const rows = () => stage.classList.contains('rows');
   const set = (pct: number) => {
     const v = Math.min(80, Math.max(20, pct));
@@ -12,7 +12,7 @@ export function initDivider(stage: HTMLElement, seam: HTMLElement) {
     if (saved) set(saved);
   } catch { /* storage unavailable */ }
 
-  let current = 50;
+  let current = 66.667;
   const move = (e: PointerEvent) => {
     const r = stage.getBoundingClientRect();
     current = set(rows() ? ((e.clientY - r.top) / r.height) * 100 : ((e.clientX - r.left) / r.width) * 100);
@@ -38,11 +38,11 @@ export function initDivider(stage: HTMLElement, seam: HTMLElement) {
   };
   seam.addEventListener('pointerup', end);
   seam.addEventListener('pointercancel', end);
-  // Double-click returns to an even split.
+  // Double-click returns to the default: sculpting gets two thirds.
   seam.addEventListener('dblclick', () => {
-    current = set(50);
+    current = set(66.667);
     try {
-      localStorage.setItem(KEY, '50');
+      localStorage.setItem(KEY, '66.667');
     } catch { /* ignore */ }
   });
 }

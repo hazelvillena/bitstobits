@@ -12,6 +12,8 @@ export interface Specimen {
   raw: SignatureRaw;
   mesh: MeshData;
   material?: string;
+  /** Six-digit code, the form's public identity. */
+  code?: string;
 }
 
 // Plain descriptive names from the form's strongest traits.
@@ -57,7 +59,24 @@ export function createSpecimen(vol: Volume, no: number, material: string): Speci
     raw,
     mesh,
     material,
+    code: newCode(),
   };
+}
+
+/** Six random digits, never starting with 0. */
+function newCode() {
+  return String(100000 + Math.floor(Math.random() * 900000));
+}
+
+/** A form's code, formatted for reading: "482 913". Older saves derive one from their id. */
+export function codeOf(s: Specimen) {
+  let c = s.code;
+  if (!c) {
+    let h = 2166136261;
+    for (const ch of s.id) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+    c = String(100000 + (Math.abs(h) % 900000));
+  }
+  return `${c.slice(0, 3)} ${c.slice(3)}`;
 }
 
 const KEY = 'b2b.specimens.v1';

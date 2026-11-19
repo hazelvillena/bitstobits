@@ -7,11 +7,11 @@ Status: working prototype. See [DECISIONS.md](DECISIONS.md) for what changed and
 
 ## Experience
 
-1. **Start**: camera or mouse.
-2. **Calibrate** (camera): hold up an open hand for a moment. It appears as a measured diagram of 21 joints with live dimension lines.
+1. **Start**: a short welcome, then a choice between hands (camera) and mouse.
+2. **Calibrate** (camera): hold up an open hand for a couple of seconds. It appears as a quiet measured drawing of 21 joints with live dimension lines; the ring fills smoothly and forgives brief slips.
 3. **Sculpt**: you start from a smooth rhombicuboctahedron (squares and triangles, softly rounded edges). the current tool's name follows your wrist, so you always know what your hand is doing. The form answers to presence. Rings appear where a fingertip approaches; touched areas glow and cool.
 4. **Keep**: press Enter or "Keep this form". The form dissolves toward the collection.
-5. **Collection**: forms arrange by kinship. Close relatives grow thin ligaments between their nearest surfaces. Hover a form for a small card beside it: a radar chart overlaying its traits on its closest relative's, and how alike they are.
+5. **Collection**: every kept form gets a six-digit code (for example 482 913). Switch between the network and a grid of all forms at the top. forms arrange by kinship. Close relatives grow thin ligaments between their nearest surfaces. Hover a form for a small card beside it: a radar chart overlaying its traits on its closest relative's, and how alike they are.
 
 ## Tools and gestures
 
@@ -28,7 +28,7 @@ Pick a tool with keys 1 to 4 or the toolbar at the bottom of the sculpt pane. Th
 
 Both hands can extrude at the same time. `[` and `]` (or the size control in the toolbar) change the brush size; the surface shows its exact outline. `M` cycles the material. Every tool eases in over a third of a second and is rate-limited, so changes are small and deliberate.
 
-Other keys: `N` start over, `C` recalibrate. Drag the divider to resize the panes (double-click for an even split). `?layout=rows` stacks them for a portrait screen.
+Other keys: `N` start over, `C` recalibrate. Sculpting takes two thirds of the screen by default; drag the divider to resize (double-click to reset). `?layout=rows` stacks them for a portrait screen.
 
 ## How it works
 
@@ -94,3 +94,5 @@ npm run dev
 ```
 
 Open http://localhost:5173 in Chrome. Camera access needs a normal browser tab.
+
+Deploys to Vercel as a static Vite app: `npm run build` (which first copies the MediaPipe runtime into `public/`) and serve `dist/`.
