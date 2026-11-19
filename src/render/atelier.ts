@@ -18,6 +18,7 @@ import { Volume } from '../sculpt/volume';
 import { createClayMaterial, MAX_TIPS } from './clayMaterial';
 import { createParticleSkin } from './particleSkin';
 import { palette } from '../ui/tokens';
+import { materialIndex, type MaterialKind } from './materials';
 
 /** Plate I: the sculpting chamber. */
 export class Atelier {
@@ -38,6 +39,9 @@ export class Atelier {
   private grow = 1; // 0..1 new lump animation
   private canvas: HTMLCanvasElement;
   private pixelRatio = 1;
+  material: MaterialKind = 'pearl';
+  /** Brush radius in object units, mirrored to the shader outline. */
+  brush = 0.12;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -49,7 +53,7 @@ export class Atelier {
     this.camera.lookAt(0, 0, 0);
 
     this.volume = new Volume(96);
-    this.clay = createClayMaterial(this.volume);
+    this.clay = createClayMaterial(this.volume, this.material);
     this.tips = this.clay.uniforms.uTips.value as Vector4[];
     const box = new Mesh(new BoxGeometry(2, 2, 2), this.clay);
     box.renderOrder = 1;
@@ -68,7 +72,19 @@ export class Atelier {
 
     this.object.rotation.set(0.25, -0.5, 0);
     this.scene.add(this.object);
+    this.setMaterial(this.material);
     this.resize();
+  }
+
+  setMaterial(kind: MaterialKind) {
+    this.material = kind;
+    this.clay.uniforms.uMaterial.value = materialIndex(kind);
+    // The particle skin is part of the drawing language: full in Lines,
+    // a fine dust on Pearl and Obsidian, absent on Graphic.
+    const skin = { pearl: 0.22, obsidian: 0.14, graphic: 0, lines: 1 }[kind];
+    this.skin.material.uniforms.uSkin.value = skin;
+    this.skin.points.visible = skin > 0;
+    this.skin.material.uniforms.uSkinLight.value = { pearl: 0.55, obsidian: 0.85, graphic: 0, lines: 0 }[kind];
   }
 
   resize() {
@@ -92,11 +108,18 @@ export class Atelier {
   }
 
   /** Inertial turntable. dx/dy in radians. */
+  /**
+   * Turn the form directly by an angle (radians). It follows the hand while
+   * held; a short glide continues after release.
+   */
   rotateBy(dx: number, dy: number) {
-    this.spin.x += dx;
-    this.spin.y += dy;
+    this.object.rotateOnWorldAxis(new Vector3(0, 1, 0), dx);
+    this.object.rotateOnWorldAxis(new Vector3(1, 0, 0), dy);
+    this.spin.set(dx, dy).multiplyScalar(0.6);
+    this.held = true;
     this.idle = 0;
   }
+  private held = false;
   touch() {
     this.idle = 0;
   }
@@ -182,9 +205,12 @@ export class Atelier {
 
     // Turntable with inertia; a slow idle drift when nobody is touching.
     const damp = Math.exp(-dt * 4);
-    this.object.rotateOnWorldAxis(new Vector3(0, 1, 0), this.spin.x);
-    this.object.rotateOnWorldAxis(new Vector3(1, 0, 0), this.spin.y);
-    this.spin.multiplyScalar(damp);
+    if (!this.held) {
+      this.object.rotateOnWorldAxis(new Vector3(0, 1, 0), this.spin.x);
+      this.object.rotateOnWorldAxis(new Vector3(1, 0, 0), this.spin.y);
+      this.spin.multiplyScalar(damp);
+    }
+    this.held = false;
     if (this.idle > 4) this.object.rotateOnWorldAxis(new Vector3(0, 1, 0), dt * 0.08 * Math.min(1, (this.idle - 4) / 3));
 
     this.cage.rotation.y += dt * 0.03;
@@ -203,6 +229,7 @@ export class Atelier {
     u.uCam.value.copy(camLocal);
     u.uTime.value = this.time;
     u.uOpacity.value = (1 - this.dissolve) * g;
+    u.uBrush.value = this.brush;
     const su = this.skin.material.uniforms;
     su.uTime.value = this.time;
     su.uDissolve.value = this.dissolve;

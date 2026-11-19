@@ -3,22 +3,25 @@ import type { Atelier } from '../render/atelier';
 import type { Sculptor, ToolKind } from '../sculpt/sculptor';
 
 /**
- * Pointer input: a precise debug path and a full fallback when no camera
- * is available. Same tools as the hands.
+ * Pointer input: a precise path for testing and a full fallback when no
+ * camera is available. Same tools and the same feel as the hands.
  */
 export class PointerInput {
-  tool: ToolKind = 'drill';
+  tool: ToolKind = 'extrude';
   enabled = false;
   onToolChange: (t: ToolKind) => void = () => {};
 
   private down = false;
   private turning = false;
+  private extruding = false;
+  private held = 0;
   private x = 0;
   private y = 0;
+  private startX = 0;
+  private startY = 0;
   private lastX = 0;
   private lastY = 0;
   private hover = false;
-  private anchorDepth = 0;
   private d = new Vector3();
   private hit = new Vector3();
 
@@ -27,15 +30,20 @@ export class PointerInput {
       if (!this.enabled) return;
       el.setPointerCapture(e.pointerId);
       this.down = true;
+      this.held = 0;
       this.turning = e.button === 2 || e.shiftKey || this.tool === 'turn';
       this.setPos(e);
-      this.lastX = this.x;
-      this.lastY = this.y;
-      if (!this.turning && this.tool === 'pull') this.beginPull();
+      this.startX = this.lastX = this.x;
+      this.startY = this.lastY = this.y;
+      if (!this.turning && this.tool === 'extrude') {
+        const hit = this.atelier.castSurface(this.x, this.y);
+        this.extruding = !!hit && this.sculptor.beginExtrude('pointer', hit);
+      }
     });
     el.addEventListener('pointermove', (e) => this.setPos(e));
     const up = () => {
-      if (this.down && this.tool === 'pull') this.sculptor.pull('pointer', this.hit, false);
+      if (this.extruding) this.sculptor.endExtrude('pointer');
+      this.extruding = false;
       this.down = false;
       this.turning = false;
     };
@@ -57,42 +65,36 @@ export class PointerInput {
     this.onToolChange(t);
   }
 
-  /** Cast onto the visible surface; writes the world hit point. */
   private cast(): boolean {
     const hit = this.atelier.castSurface(this.x, this.y);
     if (!hit) return false;
     this.hit.copy(hit.point);
     this.d.copy(hit.dir);
-    this.anchorDepth = hit.dist;
     return true;
   }
 
-  private beginPull() {
-    if (this.cast()) this.sculptor.pull('pointer', this.hit, true);
-  }
-
-  /** Per-frame. Returns proximity markers for the shader. */
+  /** Per frame. Returns surface markers for the shader. */
   update(dt: number): { pos: Vector3; strength: number }[] {
     if (!this.enabled) return [];
+    if (this.down) this.held += dt;
+    const ease = Math.min(1, this.held / 0.35); // tools ease in
+
     if (this.turning && this.down) {
       const dx = this.x - this.lastX, dy = this.y - this.lastY;
-      this.atelier.rotateBy(dx * 0.0016, dy * 0.0016);
+      if (dx || dy) this.atelier.rotateBy(dx * 0.006, dy * 0.006);
       this.lastX = this.x;
       this.lastY = this.y;
       return [];
     }
-    if (this.down && this.tool === 'pull') {
-      // Follow the pointer on the plane at the anchor's depth.
-      const p = this.atelier.pointOnRay(this.x, this.y, this.anchorDepth, new Vector3());
-      this.sculptor.pull('pointer', p, true);
-      return [{ pos: p, strength: 1 }];
+    if (this.extruding) {
+      this.sculptor.dragExtrude('pointer', this.x - this.startX, this.y - this.startY);
+      return this.cast() ? [{ pos: this.hit.clone(), strength: 1 }] : [];
     }
     if (!this.hover || !this.cast()) return [];
     if (this.down) {
-      if (this.tool === 'drill') this.sculptor.drill(this.hit, this.d, dt);
-      else if (this.tool === 'press') this.sculptor.press(this.hit, this.d, dt);
-      else if (this.tool === 'smooth') this.sculptor.smooth(this.hit, dt);
+      if (this.tool === 'drill') this.sculptor.drill(this.hit, this.d, dt, ease);
+      else if (this.tool === 'smooth') this.sculptor.smooth(this.hit, dt, ease);
     }
-    return [{ pos: this.hit.clone(), strength: this.down ? 1 : 0.55 }];
+    return [{ pos: this.hit.clone(), strength: this.down ? 1 : 0.5 }];
   }
 }

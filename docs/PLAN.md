@@ -17,14 +17,15 @@ Status: working prototype. See [DECISIONS.md](DECISIONS.md) for what changed and
 
 Pick a tool with keys 1 to 5 or by clicking it. Then **aim and pinch**: your index fingertip points at the form like a mouse cursor, and pinching thumb and index starts the tool exactly where you aimed. Release to stop.
 
-| Key | Tool | While pinched |
+| Key | Tool | While pinched (or mouse held) |
 |---|---|---|
-| 1 | Pierce | Hold to drill deeper; move to carve a groove |
-| 2 | Pull | Drag to draw the surface out like clay |
-| 3 | Press | Hold to sink in |
-| 4 | Smooth | Move across the surface |
-| 5 | Rotate | Drag anywhere (mouse: right drag) |
+| 1 | Extrude | Drag along the face's outward direction to extrude it, the other way to inset it. Drag sideways to bend it; the end face turns toward the direction of travel. Moving back undoes, so you can find the right length. |
+| 2 | Pierce | Hold to bore slowly; move to carve a groove |
+| 3 | Smooth | Move across the surface |
+| 4 | Rotate | Drag anywhere (mouse: right drag). The form follows your hand exactly and glides briefly on release. |
 | Enter | Keep | |
+
+`[` and `]` change the brush size; the surface shows its exact outline. `M` cycles the material. Every tool eases in over a third of a second and is rate-limited, so changes are small and deliberate.
 
 Other keys: `N` start over, `C` recalibrate. Drag the divider to resize the panes (double-click for an even split). `?layout=rows` stacks them for a portrait screen.
 
@@ -33,6 +34,8 @@ Other keys: `N` start over, `C` recalibrate. Drag the divider to resize the pane
 **Matter.** A 96³ signed distance field (each point stores its distance to the surface) on the CPU is the source of truth. Brushes edit only the voxels they touch. The GPU gets a half-float copy plus an attribute texture (compression, heat). Rendering is a raymarch in a fragment shader that writes real depth, so the particle skin sorts correctly against it.
 
 **Particle skin.** 56k points with no CPU state. Each frame the vertex shader projects a slowly rotating seed onto the surface, so particles slide over the form and scatter from fingertips.
+
+**Materials.** Pearl (thin-film iridescence), Obsidian (black glass), Graphic (bold colour field) and Lines (the contour drawing). All four read the same data. Kept forms remember their material.
 
 **Colour as data.**
 - Contour line colour follows curvature: rose on flat areas, magenta in hollows, ultramarine on ridges.
@@ -75,8 +78,9 @@ src/
 - [x] Keeping forms: mesh, traits, naming, storage
 - [x] Collection: kinship layout, ligaments, hover detail
 - [ ] Tune gestures with a real camera session (depth gain, pinch threshold)
+- [x] Face extrude with bend and inset
 - [ ] Twist and two-hand squeeze
-- [ ] Optional lenses (obsidian, glow)
+- [x] Materials: Pearl, Obsidian, Graphic, Lines
 - [ ] Export a form (glTF)
 
 ## Running

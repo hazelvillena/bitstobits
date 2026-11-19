@@ -26,6 +26,7 @@ interface Grab {
   depth: number;
   lastX: number;
   lastY: number;
+  held: number;
 }
 
 /**
@@ -38,7 +39,7 @@ interface Grab {
  */
 export class HandInput {
   enabled = false;
-  tool: () => ToolKind = () => 'pull';
+  tool: () => ToolKind = () => 'extrude';
   activity = new Map<HandFrame, HandActivity>();
 
   private pinching = new Map<boolean, boolean>();
@@ -97,9 +98,13 @@ export class HandInput {
             aimX: aim.x, aimY: aim.y,
             depth: hit?.dist ?? 0,
             lastX: mid.x, lastY: mid.y,
+            held: 0,
           };
           this.grabs.set(key, grab);
-          if (selected === 'pull' && hit) this.sculptor.pull(String(key), hit.point, true);
+          if (selected === 'extrude' && hit && !this.sculptor.beginExtrude(String(key), hit)) {
+            this.grabs.delete(key);
+            grab = undefined;
+          }
         }
       }
       if (!pinch.now && grab) {
@@ -110,25 +115,26 @@ export class HandInput {
       let engaged = false;
       let onForm = false;
       if (grab) {
-        // The pinch moves the aim; small hand motion is amplified a little.
-        const gain = 1.25;
-        const ax = grab.aimX + (mid.x - grab.startX) * gain;
-        const ay = grab.aimY + (mid.y - grab.startY) * gain;
+        grab.held += dt;
+        const ease = Math.min(1, grab.held / 0.35); // tools ease in, never jump
+        const dx = mid.x - grab.startX, dy = mid.y - grab.startY;
         if (grab.tool === 'turn') {
-          this.atelier.rotateBy((mid.x - grab.lastX) * 0.004, (mid.y - grab.lastY) * 0.004);
+          // Direct, calm turning with a small dead zone against tremor.
+          let mx = mid.x - grab.lastX, my = mid.y - grab.lastY;
+          if (Math.hypot(mx, my) < 1.2) mx = my = 0;
+          if (mx || my) this.atelier.rotateBy(mx * 0.0028, my * 0.0028);
           engaged = true;
-        } else if (grab.tool === 'pull') {
-          const p = this.atelier.pointOnRay(ax, ay, grab.depth, new Vector3());
-          engaged = this.sculptor.pull(String(key), p, true);
-          tips.push({ pos: p, strength: 1 });
+        } else if (grab.tool === 'extrude') {
+          engaged = this.sculptor.dragExtrude(String(key), dx, dy);
+          const hit = this.atelier.castSurface(grab.aimX, grab.aimY);
+          if (hit) tips.push({ pos: hit.point, strength: 1 });
           onForm = true;
         } else {
-          const hit = this.atelier.castSurface(ax, ay);
+          const hit = this.atelier.castSurface(grab.aimX + dx, grab.aimY + dy);
           if (hit) {
             onForm = true;
-            if (grab.tool === 'drill') engaged = this.sculptor.drill(hit.point, hit.dir, dt);
-            else if (grab.tool === 'press') engaged = this.sculptor.press(hit.point, hit.dir, dt, 0.2);
-            else engaged = this.sculptor.smooth(hit.point, dt);
+            if (grab.tool === 'drill') engaged = this.sculptor.drill(hit.point, hit.dir, dt, ease);
+            else engaged = this.sculptor.smooth(hit.point, dt, ease);
             tips.push({ pos: hit.point, strength: 1 });
           }
         }
@@ -158,7 +164,7 @@ export class HandInput {
   }
 
   private end(key: boolean, grab: Grab) {
-    if (grab.tool === 'pull') this.sculptor.pull(String(key), new Vector3(), false);
+    if (grab.tool === 'extrude') this.sculptor.endExtrude(String(key));
     this.grabs.delete(key);
     this.pinching.delete(key);
   }

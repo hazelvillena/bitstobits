@@ -51,7 +51,7 @@ button { font: inherit; color: inherit; }
 body.resizing { cursor: col-resize; user-select: none; }
 body.resizing.rows-resize { cursor: row-resize; }
 body.resizing canvas { pointer-events: none; }
-.pane { position: relative; overflow: hidden; min-width: 0; min-height: 0; }
+.pane { position: relative; overflow: hidden; min-width: 0; min-height: 0; container-type: size; }
 
 .atelier {
   background:
@@ -82,6 +82,28 @@ body.resizing canvas { pointer-events: none; }
   pointer-events: none;
 }
 .brand { font-weight: 560; letter-spacing: -0.01em; }
+.head-right { display: flex; align-items: baseline; gap: var(--s-5); }
+.pane-head > *, .head-right > *, .materials button { white-space: nowrap; }
+
+/* Narrow panes: drop secondary text, stack the footer */
+@container (max-width: 560px) {
+  #specimen-no { display: none; }
+  .materials { gap: var(--s-2); }
+}
+@container (max-width: 470px) {
+  .pane-foot { flex-direction: column; align-items: stretch; gap: var(--s-4); }
+  .pane-foot .actions-row { justify-content: flex-end; }
+}
+
+/* Material switch: plain words, the active one in ink */
+.materials { display: flex; gap: var(--s-3); pointer-events: auto; }
+.materials button {
+  appearance: none; border: 0; background: none; padding: 0; cursor: pointer;
+  color: var(--ink-3); font-size: var(--t-body);
+  transition: color var(--t-fast) var(--ease-out);
+}
+.materials button:hover { color: var(--ink-2); }
+.materials button[aria-pressed='true'] { color: var(--ink); }
 
 .pane-foot {
   position: absolute;

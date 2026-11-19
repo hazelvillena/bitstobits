@@ -164,10 +164,15 @@ export class Volume {
   // ───────────── Brushes ─────────────
 
   private region(cx: number, cy: number, cz: number, r: number, fn: (p: number, x: number, y: number, z: number) => void) {
+    this.regionBox([cx - r, cy - r, cz - r], [cx + r, cy + r, cz + r], fn);
+  }
+
+  /** Visit every voxel inside an object-space box. */
+  private regionBox(min: number[], max: number[], fn: (p: number, x: number, y: number, z: number) => void) {
     const { n, h } = this;
-    const lo = (c: number) => Math.max(1, Math.floor((c - r + 1) / h));
-    const hi = (c: number) => Math.min(n - 2, Math.ceil((c + r + 1) / h));
-    const i0 = lo(cx), i1 = hi(cx), j0 = lo(cy), j1 = hi(cy), k0 = lo(cz), k1 = hi(cz);
+    const lo = (c: number) => Math.max(1, Math.floor((c + 1) / h));
+    const hi = (c: number) => Math.min(n - 2, Math.ceil((c + 1) / h));
+    const i0 = lo(min[0]), i1 = hi(max[0]), j0 = lo(min[1]), j1 = hi(max[1]), k0 = lo(min[2]), k1 = hi(max[2]);
     for (let k = k0; k <= k1; k++) {
       const z = this.coord(k);
       for (let j = j0; j <= j1; j++) {
@@ -276,49 +281,70 @@ export class Volume {
     }
   }
 
-  // ───────────── Grab (clay pull) ─────────────
+  // ───────────── Extrude (face) ─────────────
   private snapSdf: Float32Array | null = null;
   private snapComp: Float32Array | null = null;
+  private strokeMin = [0, 0, 0];
+  private strokeMax = [0, 0, 0];
+  private stroking = false;
 
-  /**
-   * Drag matter like clay by one small step: points near `anchor` are carried
-   * by `delta` with a smooth falloff of radius `R`. Callers split large moves
-   * into steps under ~R/3 so the warp never folds, and move the anchor with
-   * the matter, so pulled material stays attached and thins into a neck.
-   */
-  grabStep(anchor: Vector3, delta: Vector3, R: number) {
+  /** Freeze the form at the start of a stroke. Strokes rebuild from this. */
+  beginStroke() {
     if (!this.snapSdf) {
       this.snapSdf = new Float32Array(this.sdf.length);
       this.snapComp = new Float32Array(this.comp.length);
     }
+    this.snapSdf.set(this.sdf);
+    this.snapComp!.set(this.comp);
+    this.strokeMin = [Infinity, Infinity, Infinity];
+    this.strokeMax = [-Infinity, -Infinity, -Infinity];
+    this.stroking = true;
+  }
+  endStroke() {
+    this.stroking = false;
+  }
+
+  /**
+   * Extrude (sign +1) or inset (sign -1) a rounded face swept along `path`.
+   * Rebuilt from the stroke snapshot every call, so the result is always the
+   * clean original plus exactly one extrusion: moving back undoes it, and
+   * nothing accumulates. The last segment's end is a flat face that points
+   * along the direction of travel.
+   */
+  extrude(path: Vector3[], r: number, sign: 1 | -1) {
+    if (!this.stroking || !this.snapSdf || path.length < 2) return;
     const snap = this.snapSdf, snapC = this.snapComp!;
-    const reach = R + delta.length() + this.h;
-    // Freeze just the neighbourhood we read from.
-    this.region(anchor.x, anchor.y, anchor.z, reach + this.h * 2, (p) => {
-      snap[p] = this.sdf[p];
-      snapC[p] = this.comp[p];
-    });
-    const R2 = R * R;
+    const k = sign > 0 ? r * 0.75 : r * 0.35; // soft fillet into the body
+    const re = r * 0.38; // edge rounding of the face
+    const pad = r + k + this.h * 2;
+    const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+    for (const q of path) {
+      mn[0] = Math.min(mn[0], q.x - pad); mx[0] = Math.max(mx[0], q.x + pad);
+      mn[1] = Math.min(mn[1], q.y - pad); mx[1] = Math.max(mx[1], q.y + pad);
+      mn[2] = Math.min(mn[2], q.z - pad); mx[2] = Math.max(mx[2], q.z + pad);
+    }
+    // Visit the union with everything this stroke has touched, so shrinking restores.
+    for (let a = 0; a < 3; a++) {
+      this.strokeMin[a] = Math.min(this.strokeMin[a], mn[a]);
+      this.strokeMax[a] = Math.max(this.strokeMax[a], mx[a]);
+    }
     const L = Volume.LIMIT;
-    this.region(anchor.x, anchor.y, anchor.z, reach, (p, x, y, z) => {
-      // Fixed-point inverse: find q with q + delta·w(q) = p.
-      let qx = x, qy = y, qz = z, w = 0;
-      for (let it = 0; it < 3; it++) {
-        const dx = qx - anchor.x, dy = qy - anchor.y, dz = qz - anchor.z;
-        const d2 = dx * dx + dy * dy + dz * dz;
-        const t = d2 < R2 ? 1 - d2 / R2 : 0;
-        w = t * t;
-        qx = x - delta.x * w;
-        qy = y - delta.y * w;
-        qz = z - delta.z * w;
+    const compShift = sign > 0 ? -0.22 : 0.3;
+    const segK = r * 0.3;
+    this.regionBox(this.strokeMin, this.strokeMax, (p, x, y, z) => {
+      let shape = Infinity;
+      for (let s = 0; s < path.length - 1; s++) {
+        const d = sdRoundCylinder(x, y, z, path[s], path[s + 1], r, re);
+        shape = s === 0 ? d : smin(shape, d, segK);
       }
-      if (w === 0) return;
-      const d = this.sampleOf(snap, qx, qy, qz);
-      const box = Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) - L;
-      this.sdf[p] = Math.max(d, box);
-      const c = this.sampleOf(snapC, qx, qy, qz);
-      this.comp[p] = c - c * 0.06 * w; // stretched matter eases toward "stretched"
-      this.heat[p] = Math.max(this.heat[p], w * 0.8);
+      const d0 = snap[p];
+      let d = sign > 0 ? smin(d0, shape, k) : smax(d0, -shape, k);
+      d = Math.max(d, Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) - L);
+      this.sdf[p] = d;
+      const infl = Math.max(0, 1 - Math.max(shape, 0) / (k + 0.04));
+      const c0 = snapC[p];
+      this.comp[p] = infl > 0 ? Math.min(1, Math.max(0, c0 + compShift * infl)) : c0;
+      if (infl > 0) this.heat[p] = Math.max(this.heat[p], infl * 0.7);
       this.writeVoxel(p);
     });
   }
@@ -334,6 +360,25 @@ export class Volume {
       this.attrDirty = false;
     }
   }
+}
+
+/** Cylinder from a to b with radius r and rounded edges re (flat ends). */
+function sdRoundCylinder(px: number, py: number, pz: number, a: Vector3, b: Vector3, r: number, re: number) {
+  let ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+  const len = Math.sqrt(ux * ux + uy * uy + uz * uz);
+  if (len < 2 * re + 1e-4) {
+    const mx = (a.x + b.x) / 2 - px, my = (a.y + b.y) / 2 - py, mz = (a.z + b.z) / 2 - pz;
+    return Math.sqrt(mx * mx + my * my + mz * mz) - r;
+  }
+  ux /= len; uy /= len; uz /= len;
+  const ax = a.x + ux * re, ay = a.y + uy * re, az = a.z + uz * re;
+  const H = len - 2 * re;
+  const qx = px - ax, qy = py - ay, qz = pz - az;
+  const t = qx * ux + qy * uy + qz * uz;
+  const rad = Math.sqrt(Math.max(0, qx * qx + qy * qy + qz * qz - t * t));
+  const dx = rad - (r - re);
+  const dy = Math.abs(t - H / 2) - H / 2;
+  return Math.min(Math.max(dx, dy), 0) + Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) - re;
 }
 
 export function smin(a: number, b: number, k: number) {

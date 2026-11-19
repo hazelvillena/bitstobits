@@ -4,9 +4,8 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 
 // Minimal line glyphs for each tool.
 const GLYPHS: Record<ToolKind, string> = {
+  extrude: '<path d="M3 13 H19"/><rect x="7.5" y="3" width="7" height="7" rx="2"/><path d="M11 13 V10"/>',
   drill: '<circle cx="11" cy="8" r="5.5"/><circle cx="11" cy="8" r="1.6"/>',
-  pull: '<path d="M3 12 C8 12 9 4 19 4"/><circle cx="19" cy="4" r="1.4"/>',
-  press: '<path d="M3 4 H19"/><path d="M4 12 C8 8 14 8 18 12"/>',
   smooth: '<path d="M3 10 C6 6 8 14 11 10 S16 6 19 10"/>',
   turn: '<path d="M5 9 A6 6 0 1 0 11 3"/><path d="M11 1 L13 3 L11 5"/>',
 };

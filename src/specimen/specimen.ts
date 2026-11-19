@@ -2,6 +2,7 @@ import { get, set } from 'idb-keyval';
 import type { Volume } from '../sculpt/volume';
 import { meshVolume, type MeshData } from './mesher';
 import { measure, type Signature, type SignatureRaw } from './signature';
+import type { MaterialKind } from '../render/materials';
 
 export interface Specimen {
   id: string;
@@ -11,6 +12,7 @@ export interface Specimen {
   sig: Signature;
   raw: SignatureRaw;
   mesh: MeshData;
+  material?: MaterialKind;
 }
 
 // Plain descriptive names from the form's strongest traits.
@@ -44,7 +46,7 @@ function nameFor(sig: Signature) {
 }
 const capital = (s: string) => s[0].toUpperCase() + s.slice(1);
 
-export function createSpecimen(vol: Volume, no: number): Specimen {
+export function createSpecimen(vol: Volume, no: number, material: MaterialKind = 'pearl'): Specimen {
   const mesh = meshVolume(vol);
   const { sig, raw } = measure(vol, mesh);
   return {
@@ -55,6 +57,7 @@ export function createSpecimen(vol: Volume, no: number): Specimen {
     sig,
     raw,
     mesh,
+    material,
   };
 }
 

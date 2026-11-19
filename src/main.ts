@@ -14,6 +14,7 @@ import { createSpecimen, loadSpecimens, saveSpecimens, type Specimen } from './s
 import { TRAITS } from './specimen/signature';
 import { traitHex, traitLabel } from './ui/tokens';
 import { initDivider } from './ui/divider';
+import { MATERIALS, type MaterialKind } from './render/materials';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -39,6 +40,28 @@ let input: 'hands' | 'pointer' = 'pointer';
 let accepting = false;
 
 fillLump(atelier.volume, (Date.now() % 100000) + 1);
+
+// ───── Material ─────
+const matNav = $('materials');
+function setMaterial(kind: MaterialKind) {
+  atelier.setMaterial(kind);
+  for (const b of matNav.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.kind === kind));
+  try {
+    localStorage.setItem('b2b.material', kind);
+  } catch { /* ignore */ }
+}
+for (const m of MATERIALS) {
+  const b = document.createElement('button');
+  b.textContent = m.name;
+  b.dataset.kind = m.kind;
+  b.addEventListener('click', () => setMaterial(m.kind));
+  matNav.appendChild(b);
+}
+let savedMaterial: MaterialKind = 'pearl';
+try {
+  savedMaterial = (localStorage.getItem('b2b.material') as MaterialKind) || 'pearl';
+} catch { /* ignore */ }
+setMaterial(MATERIALS.some((m) => m.kind === savedMaterial) ? savedMaterial : 'pearl');
 
 // ───── Intro ─────
 function begin(kind: 'hands' | 'pointer') {
@@ -77,7 +100,7 @@ $('btn-calibrate').addEventListener('click', async () => {
 calibration.onDone = () => {
   mode = 'sculpt';
   hands.enabled = true;
-  pointer.setTool('pull');
+  pointer.setTool('extrude');
 };
 // Hands act with whichever tool is selected; they never pick it themselves.
 hands.tool = () => pointer.tool;
@@ -85,10 +108,16 @@ hands.tool = () => pointer.tool;
 pointer.onToolChange = (t) => chrome.setActive(t);
 chrome.onToolClick((t) => pointer.setTool(t));
 
-const KEYS: Record<string, ToolKind> = { '1': 'drill', '2': 'pull', '3': 'press', '4': 'smooth', '5': 'turn' };
+const KEYS: Record<string, ToolKind> = { '1': 'extrude', '2': 'drill', '3': 'smooth', '4': 'turn' };
 window.addEventListener('keydown', (e) => {
   if (KEYS[e.key] && mode === 'sculpt') pointer.setTool(KEYS[e.key]);
   if (e.key === 'Enter' && mode === 'sculpt') accept();
+  if (e.key === 'm' || e.key === 'M') {
+    const i = MATERIALS.findIndex((m) => m.kind === atelier.material);
+    setMaterial(MATERIALS[(i + 1) % MATERIALS.length].kind);
+  }
+  if (e.key === '[') sculptor.setBrush(sculptor.brush * 0.85);
+  if (e.key === ']') sculptor.setBrush(sculptor.brush / 0.85);
   if ((e.key === 'n' || e.key === 'N') && mode === 'sculpt') startOver();
   if ((e.key === 'c' || e.key === 'C') && input === 'hands' && mode === 'sculpt') {
     hands.enabled = false;
@@ -108,7 +137,7 @@ $('btn-accept').addEventListener('click', () => accept());
 async function accept() {
   if (accepting) return;
   accepting = true;
-  const spec = createSpecimen(atelier.volume, specimens.length + 1);
+  const spec = createSpecimen(atelier.volume, specimens.length + 1, atelier.material);
   await atelier.dissolveOut();
   specimens.push(spec);
   field.add(spec, true);
@@ -131,7 +160,7 @@ $('btn-seed').addEventListener('click', () => {
   let left = 6;
   const one = () => {
     sculptRandom(tmp, Math.floor(Math.random() * 1e6));
-    const spec = createSpecimen(tmp, specimens.length + 1);
+    const spec = createSpecimen(tmp, specimens.length + 1, MATERIALS[Math.floor(Math.random() * 3)].kind);
     specimens.push(spec);
     field.add(spec, true);
     updateCount();
@@ -199,6 +228,7 @@ function frame(now: number) {
       overlay.draw(tracker.hands, 'sculpt', dt, tracker.cal.mmPerUnit, hands.activity);
     }
   }
+  atelier.brush = sculptor.brush;
   atelier.setTips(tips);
   atelier.update(dt);
   atelier.render();

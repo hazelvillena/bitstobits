@@ -94,7 +94,7 @@ export class Field {
     geo.computeBoundingSphere();
     const bs = geo.boundingSphere!;
     geo.translate(-bs.center.x, -bs.center.y, -bs.center.z);
-    const mat = createSpecimenMaterial();
+    const mat = createSpecimenMaterial(spec.material ?? 'pearl');
     const mesh = new Mesh(geo, mat);
     const radius = 0.5 * (0.85 + spec.sig.volume * 0.3);
     mesh.scale.setScalar(radius / bs.radius);

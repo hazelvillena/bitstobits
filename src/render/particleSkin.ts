@@ -51,6 +51,8 @@ export function createParticleSkin(vol: Volume, count: number, tips: Vector4[]) 
       uTipCount: { value: 0 },
       uDissolve: { value: 0 },
       uOpacity: { value: 1 },
+      uSkin: { value: 1 },
+      uSkinLight: { value: 0 },
       uInk: { value: palette.ink },
       uUltra: { value: palette.ultramarine },
       uMagenta: { value: palette.magenta },
@@ -119,6 +121,8 @@ export function createParticleSkin(vol: Volume, count: number, tips: Vector4[]) 
       precision highp float;
       uniform vec3 uInk, uUltra, uMagenta, uSignal;
       uniform float uOpacity;
+      uniform float uSkin;
+      uniform float uSkinLight;
       in float vAlpha;
       in float vComp;
       in float vHeat;
@@ -132,7 +136,8 @@ export function createParticleSkin(vol: Volume, count: number, tips: Vector4[]) 
         vec3 col = mix(uUltra, uMagenta, smoothstep(0.55, 0.9, vComp));
         col = mix(col, uInk, step(0.7, vRand) * 0.6);
         col = mix(col, uSignal, vHeat);
-        fragColor = vec4(col, a * vAlpha * uOpacity * mix(0.12, 0.6, vRand * vRand));
+        col = mix(col, vec3(0.93, 0.95, 0.98), uSkinLight);
+        fragColor = vec4(col, a * vAlpha * uOpacity * uSkin * mix(0.12, 0.6, vRand * vRand));
       }
     `,
   });

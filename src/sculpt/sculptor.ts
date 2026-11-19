@@ -1,25 +1,37 @@
 import { Vector3 } from 'three';
 import type { Atelier } from '../render/atelier';
 
-export type ToolKind = 'drill' | 'pull' | 'press' | 'smooth' | 'turn';
+export type ToolKind = 'drill' | 'extrude' | 'smooth' | 'turn';
 
 export const TOOLS: { kind: ToolKind; name: string; hand: string; key: string }[] = [
-  { kind: 'drill', name: 'Pierce', hand: 'pinch and hold', key: '1' },
-  { kind: 'pull', name: 'Pull', hand: 'pinch and drag', key: '2' },
-  { kind: 'press', name: 'Press', hand: 'pinch and hold', key: '3' },
-  { kind: 'smooth', name: 'Smooth', hand: 'pinch and move', key: '4' },
-  { kind: 'turn', name: 'Rotate', hand: 'pinch and drag', key: '5' },
+  { kind: 'extrude', name: 'Extrude', hand: 'pinch and drag', key: '1' },
+  { kind: 'drill', name: 'Pierce', hand: 'pinch and hold', key: '2' },
+  { kind: 'smooth', name: 'Smooth', hand: 'pinch and move', key: '3' },
+  { kind: 'turn', name: 'Rotate', hand: 'pinch and drag', key: '4' },
 ];
 
+interface ExtrudeStroke {
+  P: Vector3; // grabbed surface point (local)
+  N: Vector3; // surface normal at P (local)
+  sx: number; // screen direction that means "outward"
+  sy: number;
+  wpp: number; // world units per screen pixel at the grab depth
+  amount: number; // eased, signed distance along N
+  lat: Vector3; // eased sideways bend (local)
+}
+
 /**
- * Applies tools to the volume. All inputs are world-space; the sculptor
- * converts into the object's local frame (the object may be rotating).
+ * Applies tools to the volume. Inputs are world space; the sculptor converts
+ * into the object's local frame. Every tool is rate-limited and eases in, so
+ * nothing jumps: small, deliberate changes.
  */
 export class Sculptor {
+  /** Brush radius in object units, adjustable with [ and ]. */
+  brush = 0.12;
   private a = new Vector3();
   private b = new Vector3();
   private dir = new Vector3();
-  private pullPrev = new Map<string, Vector3>();
+  private strokes = new Map<string, ExtrudeStroke>();
   constructor(private atelier: Atelier) {}
 
   private get vol() {
@@ -28,77 +40,117 @@ export class Sculptor {
   private local(world: Vector3, out: Vector3) {
     return this.atelier.toLocal(world, out);
   }
-  distanceAt(world: Vector3) {
-    const p = this.local(world, new Vector3());
-    return this.vol.sample(p.x, p.y, p.z);
+
+  setBrush(r: number) {
+    this.brush = Math.min(0.28, Math.max(0.05, r));
   }
 
-  /** Fingertip piercing along its direction of travel / pointing. */
-  drill(tipWorld: Vector3, dirWorld: Vector3, dt: number, radius = 0.075) {
+  /** Pierce: a slow, narrow bore along the view direction. */
+  drill(tipWorld: Vector3, dirWorld: Vector3, dt: number, strength = 1) {
     const tip = this.local(tipWorld, this.a);
-    const d = this.vol.sample(tip.x, tip.y, tip.z);
-    if (d > 0.03) return false;
+    if (this.vol.sample(tip.x, tip.y, tip.z) > 0.03) return false;
     this.atelier.toLocalDir(dirWorld, this.dir).normalize();
-    const depth = Math.min(0.06, 0.9 * dt + 0.02);
-    const from = this.b.copy(tip).addScaledVector(this.dir, -0.05);
+    const r = this.brush * 0.6;
+    const depth = 0.22 * dt * strength;
+    const from = this.b.copy(tip).addScaledVector(this.dir, -0.03);
     const to = tip.clone().addScaledVector(this.dir, depth);
-    this.vol.capsule(from, to, radius, radius * 0.92, 0.05, -1, 0.35 * dt * 6);
+    this.vol.capsule(from, to, r, r * 0.95, 0.035, -1, 0.6 * dt * strength);
     this.atelier.touch();
     return true;
   }
+
+  /** Smooth: relaxes the surface gently under the brush. */
+  smooth(centerWorld: Vector3, dt: number, strength = 1) {
+    const c = this.local(centerWorld, this.a);
+    const r = this.brush * 1.8;
+    if (this.vol.sample(c.x, c.y, c.z) > r) return false;
+    this.vol.smooth(c, r, Math.min(1, dt * 5 * strength));
+    this.atelier.touch();
+    return true;
+  }
+
+  // ───────────── Extrude ─────────────
 
   /**
-   * Pull: pinch the surface and drag it like clay. The grabbed point follows
-   * the hand with a little weight; matter around it comes along and thins
-   * into a neck, so long pulls become tendrils that stay attached.
+   * Grab a round face of the surface. Dragging along the face's outward
+   * direction (as seen on screen) extrudes it; dragging the other way insets
+   * it; dragging sideways bends the extrusion, and its end face turns toward
+   * the direction of travel.
    */
-  pull(id: string, pointWorld: Vector3, active: boolean) {
-    const p = this.local(pointWorld, new Vector3());
-    const anchor = this.pullPrev.get(id);
-    if (!active) {
-      if (anchor) this.pullPrev.delete(id);
-      return false;
-    }
-    if (!anchor) {
-      // One grab at a time; start only on (or just above) the surface.
-      if (this.pullPrev.size > 0) return false;
-      if (this.vol.sample(p.x, p.y, p.z) > 0.08) return false;
-      this.pullPrev.set(id, p.clone());
-      return true;
-    }
-    const target = anchor.clone().lerp(p, 0.3);
-    const move = target.sub(anchor);
-    const len = move.length();
-    if (len < 1e-4) return true;
-    const R = this.grabRadius;
-    const steps = Math.min(8, Math.ceil(len / (R * 0.3)));
-    move.divideScalar(steps);
-    for (let i = 0; i < steps; i++) {
-      this.vol.grabStep(anchor, move, R);
-      anchor.add(move);
-    }
-    this.atelier.touch();
-    return true;
-  }
-  grabRadius = 0.2;
+  beginExtrude(id: string, hit: { point: Vector3; dist: number }) {
+    const P = this.local(hit.point, new Vector3());
+    if (this.vol.sample(P.x, P.y, P.z) > 0.05) return false;
+    const N = this.vol.gradient(P, new Vector3());
 
-  press(centerWorld: Vector3, normalWorld: Vector3, dt: number, radius = 0.24) {
-    const c = this.local(centerWorld, this.a);
-    const d = this.vol.sample(c.x, c.y, c.z);
-    if (d > 0.04) return false;
-    this.atelier.toLocalDir(normalWorld, this.dir).normalize();
-    // Push a soft sphere centred just outside the contact point.
-    const at = this.b.copy(c).addScaledVector(this.dir, -radius * 0.82 + Math.min(0.05, dt * 0.6));
-    this.vol.sphere(at, radius, 0.14, -1, 0.5 * dt * 4);
-    this.atelier.touch();
+    // How the face's normal looks on screen, to read drags in its terms.
+    const nWorld = N.clone().applyQuaternion(this.atelier.object.quaternion);
+    const s0 = this.atelier.project(hit.point);
+    const s1 = this.atelier.project(hit.point.clone().addScaledVector(nWorld, 0.1));
+    const p0 = this.atelier.pointOnRay(s0.x, s0.y, hit.dist, new Vector3());
+    const p1 = this.atelier.pointOnRay(s0.x + 1, s0.y, hit.dist, new Vector3());
+    const wpp = p0.distanceTo(p1) / this.atelier.object.scale.x;
+    let nx = ((s1.x - s0.x) * wpp) / 0.1, ny = ((s1.y - s0.y) * wpp) / 0.1;
+    const facing = Math.min(1, Math.hypot(nx, ny));
+    // A face pointing at the camera has no screen direction: use "up" for out.
+    ny += -1 * (1 - facing);
+    const l = Math.hypot(nx, ny) || 1;
+
+    this.vol.beginStroke();
+    this.strokes.set(id, { P, N, sx: nx / l, sy: ny / l, wpp, amount: 0, lat: new Vector3() });
     return true;
   }
 
-  smooth(centerWorld: Vector3, dt: number, radius = 0.26) {
-    const c = this.local(centerWorld, this.a);
-    if (this.vol.sample(c.x, c.y, c.z) > radius) return false;
-    this.vol.smooth(c, radius, Math.min(1, dt * 12));
+  /** Drag in screen pixels since the grab started. */
+  dragExtrude(id: string, dx: number, dy: number) {
+    const st = this.strokes.get(id);
+    if (!st) return false;
+    const along = dx * st.sx + dy * st.sy;
+    const px = dx - st.sx * along, py = dy - st.sy * along;
+    const target = Math.min(0.6, Math.max(-0.4, along * st.wpp * 0.55));
+    // Sideways drag in world, then into the object's frame.
+    const cam = this.atelier.camera;
+    const right = new Vector3(1, 0, 0).applyQuaternion(cam.quaternion);
+    const up = new Vector3(0, 1, 0).applyQuaternion(cam.quaternion);
+    const latW = right.multiplyScalar(px).addScaledVector(up, -py).multiplyScalar(st.wpp * 0.4);
+    const latL = this.atelier.toLocalDir(latW, new Vector3());
+    latL.addScaledVector(st.N, -latL.dot(st.N)); // keep the bend tangent to the face
+
+    // Ease: the clay follows the hand with a little weight.
+    st.amount += (target - st.amount) * 0.22;
+    st.lat.lerp(latL, 0.22);
+    this.applyExtrude(st);
     this.atelier.touch();
     return true;
   }
+
+  endExtrude(id: string) {
+    if (this.strokes.delete(id)) this.vol.endStroke();
+  }
+
+  private applyExtrude(st: ExtrudeStroke) {
+    const r = this.brush;
+    const { P, N, amount, lat } = st;
+    if (amount >= 0) {
+      // Root inside the body so the face rises out of it.
+      const start = P.clone().addScaledVector(N, -r * 0.6);
+      const ctrl = P.clone().addScaledVector(N, amount * 0.6);
+      // The face sits just below the surface until the drag passes a small dead zone.
+      const end = P.clone().addScaledVector(N, amount - r * 0.3).add(lat);
+      this.vol.extrude(bezier(start, ctrl, end, 5), r, 1);
+    } else {
+      // Inset: a flat-bottomed pocket aligned to the face.
+      const start = P.clone().addScaledVector(N, r * 0.5);
+      const end = P.clone().addScaledVector(N, amount).addScaledVector(lat, 0.5);
+      this.vol.extrude([start, end], r, -1);
+    }
+  }
+}
+
+function bezier(a: Vector3, c: Vector3, b: Vector3, n: number) {
+  const pts: Vector3[] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, u = 1 - t;
+    pts.push(new Vector3().addScaledVector(a, u * u).addScaledVector(c, 2 * u * t).addScaledVector(b, t * t));
+  }
+  return pts;
 }

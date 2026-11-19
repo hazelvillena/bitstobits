@@ -2,6 +2,18 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-18 (careful tools, real materials)
+
+**Interactions are gentle and intentional.** Feedback: tools were too brute. Every tool now eases in over 0.35 s and works at a slow, fixed rate. The brush is smaller and adjustable (`[` `]`), and a crisp outline on the surface shows exactly what it will touch.
+
+**Extrude replaces Pull and Press.** Pull dragged a point, which made pointy tendrils, and Press cut a large sphere every frame. Extrude grabs a round face (flat centre, rounded edge) and moves it along its own normal, like extruding a face in a SubD modeller. The drag is read in the face's terms: along its on-screen outward direction extrudes, against it insets into a flat-bottomed pocket, and sideways bends the extrusion along a curve whose end face turns to the direction of travel. It is rebuilt from a snapshot taken at the start of the stroke, so moving back undoes it and nothing accumulates.
+
+**Rotate is direct.** It used to add velocity on every frame, so small motions built into large spins. Now the form turns exactly with the hand, with a small dead zone against tremor and a short glide after release.
+
+**Materials replace the default contour look.** Pearl, Obsidian, Graphic and Lines share one shading module, used by both the raymarched form and the kept meshes. Kept forms store their material.
+
+**Kept-form stripes fixed.** The stripes were mesh faces with inconsistent winding being culled. Kept forms now render both sides, and their normals and curvature are smoothed over mesh neighbours.
+
 ## 2026-11-18 (aim and pinch)
 
 **Hands aim like a mouse and pinch to act; depth is no longer used.** Inspection showed why touches landed in the wrong place. Depth was estimated from the palm's apparent size, which changes when the hand tilts or the fingers spread. On top of that came MediaPipe's per-landmark z, a learned depth relative to the wrist, not a measured distance. Small errors moved the fingertip through the form, and tools fired wherever the tip ended up, including the hidden back. Now the index fingertip's screen position is raycast onto the first visible surface (the same path as the mouse), a pinch starts the selected tool at that point, and pinch motion drives it in the screen plane with a little gain. This follows the target-then-pinch model of visionOS indirect input. Feedback: a quiet marker on the surface where the tool would land, a ring between thumb and index that closes as you pinch, and a signal dot when the tool is acting.
