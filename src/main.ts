@@ -107,6 +107,7 @@ hands.tool = () => pointer.tool;
 
 pointer.onToolChange = (t) => chrome.setActive(t);
 chrome.onToolClick((t) => pointer.setTool(t));
+chrome.onBrush = (dir) => sculptor.setBrush(dir > 0 ? sculptor.brush / 0.85 : sculptor.brush * 0.85);
 
 const KEYS: Record<string, ToolKind> = { '1': 'extrude', '2': 'drill', '3': 'smooth', '4': 'turn' };
 window.addEventListener('keydown', (e) => {
@@ -156,7 +157,7 @@ function updateCount() {
 }
 
 $('btn-seed').addEventListener('click', () => {
-  const tmp = new Volume(96);
+  const tmp = new Volume(128);
   let left = 6;
   const one = () => {
     sculptRandom(tmp, Math.floor(Math.random() * 1e6));
@@ -229,6 +230,7 @@ function frame(now: number) {
     }
   }
   atelier.brush = sculptor.brush;
+  chrome.setBrush(sculptor.brush);
   atelier.setTips(tips);
   atelier.update(dt);
   atelier.render();

@@ -2,6 +2,20 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-18 (two hands, toolbar, symbiosis)
+
+**Rotation only on purpose.** Removed the slow idle spin that started whenever no tool was acting; it read as the form turning under a pointing finger. The form now turns only with Rotate (pinch and drag, or right drag).
+
+**Two hands can extrude at once.** Extrude strokes share one session: a snapshot taken when the first stroke begins, with every active stroke replayed onto it once per frame, only over the areas live strokes have touched. Two simultaneous extrusions run at about 9 ms a frame. When the classifier labels both hands the same, identity falls back to which side of the image each hand is on.
+
+**Higher-definition extrude.** The grid is now 128³. Extrusions are one seamless swept tube ending in a flat, softly rounded face, with a tighter fillet into the body, instead of a chain of rounded pieces that read as blobby and ribbed.
+
+**Toolbar.** Tools are buttons at the bottom of the sculpt pane, with a brush size control. Keys still work. The intro no longer mentions video.
+
+**Graphic is lime.** Deep green through lime to pale chartreuse.
+
+**Symbiotic bridges replace line ligaments.** Lines were abstract. Now related forms extend lobes of their own matter toward each other and meet in a narrow waist, so the connection looks like part of their shape. Each side wears its form's material; a fine band in the trait colour at the waist keeps the reason visible. Related forms sit closer, and each keeps at most two relatives.
+
 ## 2026-11-18 (careful tools, real materials)
 
 **Interactions are gentle and intentional.** Feedback: tools were too brute. Every tool now eases in over 0.35 s and works at a slow, fixed rate. The brush is smaller and adjustable (`[` `]`), and a crisp outline on the surface shows exactly what it will touch.

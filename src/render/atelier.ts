@@ -52,7 +52,7 @@ export class Atelier {
     this.camera.position.set(0, 0.2, 4.4);
     this.camera.lookAt(0, 0, 0);
 
-    this.volume = new Volume(96);
+    this.volume = new Volume(128);
     this.clay = createClayMaterial(this.volume, this.material);
     this.tips = this.clay.uniforms.uTips.value as Vector4[];
     const box = new Mesh(new BoxGeometry(2, 2, 2), this.clay);
@@ -203,7 +203,7 @@ export class Atelier {
     this.time += dt;
     this.idle += dt;
 
-    // Turntable with inertia; a slow idle drift when nobody is touching.
+    // The form only turns when someone turns it (pinch and drag, or right drag).
     const damp = Math.exp(-dt * 4);
     if (!this.held) {
       this.object.rotateOnWorldAxis(new Vector3(0, 1, 0), this.spin.x);
@@ -211,7 +211,6 @@ export class Atelier {
       this.spin.multiplyScalar(damp);
     }
     this.held = false;
-    if (this.idle > 4) this.object.rotateOnWorldAxis(new Vector3(0, 1, 0), dt * 0.08 * Math.min(1, (this.idle - 4) / 3));
 
     this.cage.rotation.y += dt * 0.03;
     this.cage.rotation.x = Math.sin(this.time * 0.11) * 0.2;

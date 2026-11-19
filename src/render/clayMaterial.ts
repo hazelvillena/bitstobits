@@ -77,7 +77,7 @@ export function createClayMaterial(vol: Volume, kind: MaterialKind) {
         vec3 p = ro + rd * t;
 
         // Normal + mean curvature from one 6-tap stencil.
-        float e = uTexel * 2.0;
+        float e = uTexel * 1.5;
         float c0 = map(p);
         float xp = map(p + vec3(e,0,0)), xn = map(p - vec3(e,0,0));
         float yp = map(p + vec3(0,e,0)), yn = map(p - vec3(0,e,0));

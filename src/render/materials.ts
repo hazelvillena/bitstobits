@@ -52,11 +52,12 @@ vec3 cosPalette(float t, vec3 a, vec3 b, vec3 c, vec3 d) {
 }
 
 vec3 graphicRamp(float t) {
-  vec3 c0 = uUltra * 0.85;
-  vec3 c1 = vec3(0.47, 0.25, 0.78);
-  vec3 c2 = uMagenta;
-  vec3 c3 = vec3(0.97, 0.52, 0.47);
-  vec3 c4 = vec3(0.99, 0.86, 0.78);
+  // Hollows sink to deep green, open surfaces sit in lime, ridges lift to pale.
+  vec3 c0 = vec3(0.04, 0.20, 0.17);
+  vec3 c1 = vec3(0.16, 0.45, 0.27);
+  vec3 c2 = vec3(0.56, 0.84, 0.16);
+  vec3 c3 = vec3(0.80, 0.95, 0.36);
+  vec3 c4 = vec3(0.95, 0.98, 0.80);
   if (t < 0.25) return mix(c0, c1, t / 0.25);
   if (t < 0.5) return mix(c1, c2, (t - 0.25) / 0.25);
   if (t < 0.75) return mix(c2, c3, (t - 0.5) / 0.25);
@@ -73,7 +74,7 @@ vec3 contourRamp(float c) {
   p: object-space position (for contour lines).
   curv: signed mean curvature (convex > 0). comp: 0 stretched … 1 pressed.
 */
-vec3 shadeSurface(vec3 n, vec3 V, vec3 p, float curv, float comp, float heat, float ao) {
+vec3 shadeSurfaceM(int mat, vec3 n, vec3 V, vec3 p, float curv, float comp, float heat, float ao) {
   float ndv = clamp(dot(n, V), 0.0, 1.0);
   vec3 L = normalize(vec3(-0.45, 0.8, 0.55));
   float diff = clamp(dot(n, L), 0.0, 1.0);
@@ -83,7 +84,7 @@ vec3 shadeSurface(vec3 n, vec3 V, vec3 p, float curv, float comp, float heat, fl
   vec3 H = normalize(L + V);
   vec3 col;
 
-  if (uMaterial == 0) {
+  if (mat == 0) {
     // Pearl: thin-film iridescence. Hue shifts with viewing angle and with
     // how the form was made: hollows run warm, ridges run cool.
     float film = (1.0 - ndv) * 0.85 + curv * 0.22 + (comp - 0.5) * 0.35;
@@ -93,7 +94,7 @@ vec3 shadeSurface(vec3 n, vec3 V, vec3 p, float curv, float comp, float heat, fl
     col = base * (0.42 + 0.58 * wrap) * mix(0.62, 1.0, ao);
     col = mix(col, env * irid * 1.05, fres * 0.65);
     col += vec3(1.0) * pow(max(dot(n, H), 0.0), 90.0) * 0.55 * ao;
-  } else if (uMaterial == 1) {
+  } else if (mat == 1) {
     // Obsidian: black glass. Pressed areas carry a deep violet sheen.
     vec3 base = mix(vec3(0.028, 0.032, 0.045), vec3(0.06, 0.03, 0.09), comp);
     float fres = 0.04 + 0.96 * pow(1.0 - ndv, 5.0);
@@ -101,9 +102,9 @@ vec3 shadeSurface(vec3 n, vec3 V, vec3 p, float curv, float comp, float heat, fl
     col += env * mix(0.06, 0.95, fres) * vec3(0.88, 0.92, 1.0) * mix(0.5, 1.0, ao);
     col += vec3(1.0) * pow(max(dot(n, H), 0.0), 260.0) * 1.6;
     col += uUltra * 0.09 * smoothstep(0.2, 1.0, curv) * ao;
-  } else if (uMaterial == 2) {
-    // Graphic: a bold, smooth field mapped from curvature and pressure.
-    float t = clamp(0.48 + curv * 0.55 - (comp - 0.5) * 0.7, 0.0, 1.0);
+  } else if (mat == 2) {
+    // Graphic: a bold lime field mapped from curvature and pressure.
+    float t = clamp(0.52 + curv * 0.55 - (comp - 0.5) * 0.7, 0.0, 1.0);
     vec3 base = graphicRamp(t);
     col = base * (0.66 + 0.42 * wrap) * mix(0.72, 1.0, ao);
     float fres = pow(1.0 - ndv, 3.0);
@@ -123,5 +124,9 @@ vec3 shadeSurface(vec3 n, vec3 V, vec3 p, float curv, float comp, float heat, fl
   // Fresh touch glows and cools.
   col = mix(col, uSignal, heat * 0.35);
   return col;
+}
+
+vec3 shadeSurface(vec3 n, vec3 V, vec3 p, float curv, float comp, float heat, float ao) {
+  return shadeSurfaceM(uMaterial, n, V, p, curv, comp, heat, ao);
 }
 `;

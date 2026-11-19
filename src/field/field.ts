@@ -1,9 +1,6 @@
 import {
   BufferAttribute,
   BufferGeometry,
-  Color,
-  Line,
-  LineBasicMaterial,
   Mesh,
   PerspectiveCamera,
   Scene,
@@ -13,12 +10,11 @@ import {
 import type { Specimen } from '../specimen/specimen';
 import { kinship, sharedTraits } from '../specimen/signature';
 import { createSpecimenMaterial } from './specimenMaterial';
+import { Bridge } from './bridge';
 import { traitHex, traitLabel, type TraitKey } from '../ui/tokens';
 
 const THRESHOLD = 0.62;
-const MAX_KIN = 3;
-const STRANDS = 3;
-const SEGS = 40;
+const MAX_KIN = 2;
 
 interface Item {
   spec: Specimen;
@@ -40,7 +36,7 @@ interface Link {
   k: number;
   traits: { trait: TraitKey; score: number }[];
   born: number;
-  strands: Line[];
+  bridge: Bridge;
   label: HTMLDivElement;
 }
 
@@ -162,17 +158,8 @@ export class Field {
         continue;
       }
       const traits = sharedTraits(w.a.spec.sig, w.b.spec.sig, pop);
-      const color = new Color(traitHex[traits[0]?.trait ?? 'volume']);
-      const strands: Line[] = [];
-      for (let s = 0; s < STRANDS; s++) {
-        const g = new BufferGeometry();
-        g.setAttribute('position', new BufferAttribute(new Float32Array((SEGS + 1) * 3), 3));
-        g.setDrawRange(0, 0);
-        const line = new Line(g, new LineBasicMaterial({ color, transparent: true, opacity: s === 0 ? 0.85 : 0.35, depthWrite: false }));
-        line.frustumCulled = false;
-        this.scene.add(line);
-        strands.push(line);
-      }
+      const bridge = new Bridge(w.a.spec.material ?? 'pearl', w.b.spec.material ?? 'pearl', traitHex[traits[0]?.trait ?? 'volume']);
+      this.scene.add(bridge.mesh);
       const label = document.createElement('div');
       label.className = 'tag link';
       label.style.opacity = '0';
@@ -182,18 +169,15 @@ export class Field {
         ? `<i style="background:${traitHex[t0.trait]}"></i>${traitLabel[t0.trait]} ${fmt(t0.trait, w.a.spec.sig[t0.trait])} and ${fmt(t0.trait, w.b.spec.sig[t0.trait])}`
         : '';
       this.labels.appendChild(label);
-      next.push({ a: w.a, b: w.b, k: w.k, traits, born: this.time, strands, label });
+      next.push({ a: w.a, b: w.b, k: w.k, traits, born: this.time, bridge, label });
     }
     for (const l of old.values()) this.disposeLink(l);
     this.links = next;
   }
 
   private disposeLink(l: Link) {
-    for (const s of l.strands) {
-      this.scene.remove(s);
-      s.geometry.dispose();
-      (s.material as LineBasicMaterial).dispose();
-    }
+    this.scene.remove(l.bridge.mesh);
+    l.bridge.dispose();
     l.label.remove();
   }
 
@@ -233,7 +217,8 @@ export class Field {
         if (a === b) continue;
         const d = a.pos.clone().sub(b.pos);
         const l = Math.max(d.length(), 0.3);
-        const minD = a.radius + b.radius + 0.5;
+        const kin = this.isKin(a, b);
+        const minD = a.radius + b.radius + (kin ? 0.22 : 0.5);
         if (l < minD * 2.2) f.addScaledVector(d.normalize(), (1.4 * (minD * 2.2 - l)) / l);
         if (l < minD) f.addScaledVector(d.normalize(), (minD - l) * 14);
       }
@@ -248,7 +233,7 @@ export class Field {
     for (const l of this.links) {
       const d = l.b.pos.clone().sub(l.a.pos);
       const len = d.length() || 1;
-      const rest = l.a.radius + l.b.radius + 0.6 + (1 - l.k) * 1.6;
+      const rest = l.a.radius + l.b.radius + 0.12 + (1 - l.k) * 0.55;
       const pull = (len - rest) * 1.6 * l.k;
       d.multiplyScalar(pull / len);
       l.a.vel.addScaledVector(d, dt);
@@ -266,42 +251,27 @@ export class Field {
 
     this.updateHover(dt);
 
-    // Ligaments.
+    // Bridges.
     const pa = new Vector3(), pb = new Vector3(), na = new Vector3(), nb = new Vector3();
-    const c1 = new Vector3(), c2 = new Vector3(), tmp = new Vector3();
     const side = new Vector3();
     for (const l of this.links) {
       const dir = l.b.pos.clone().sub(l.a.pos).normalize();
       this.support(l.a, dir, pa, na);
       this.support(l.b, dir.clone().negate(), pb, nb);
-      const span = pa.distanceTo(pb);
+      // Lean the anchor normals toward each other so lobes reach, not splay.
+      na.lerp(dir, 0.55).normalize();
+      nb.lerp(dir.clone().negate(), 0.55).normalize();
       side.crossVectors(dir, new Vector3(0, 0, 1)).normalize();
-      const grow = Math.min(1, (this.time - l.born - 0.6) / 1.6);
+      const grow = Math.min(1, (this.time - l.born - 0.6) / 2.2);
       const g = grow <= 0 ? 0 : 1 - Math.pow(1 - grow, 3);
-      const focus = this.hovered ? (l.a === this.hovered || l.b === this.hovered ? 1 : 0.18) : 0.75;
-      l.strands.forEach((s, si) => {
-        const off = (si - (STRANDS - 1) / 2) * 0.05;
-        const tension = 0.16 + si * 0.05;
-        const sag = Math.sin(this.time * 0.6 + si * 1.7) * 0.04;
-        c1.copy(pa).addScaledVector(na, span * tension).addScaledVector(side, off * 2 + sag);
-        c2.copy(pb).addScaledVector(nb, span * tension).addScaledVector(side, off * 2 - sag);
-        const arr = s.geometry.getAttribute('position') as BufferAttribute;
-        for (let i = 0; i <= SEGS; i++) {
-          const t = i / SEGS, u = 1 - t;
-          tmp.copy(pa).multiplyScalar(u * u * u)
-            .addScaledVector(c1, 3 * u * u * t)
-            .addScaledVector(c2, 3 * u * t * t)
-            .addScaledVector(pb, t * t * t);
-          tmp.addScaledVector(side, off * Math.sin(Math.PI * t));
-          arr.setXYZ(i, tmp.x, tmp.y, tmp.z);
-        }
-        arr.needsUpdate = true;
-        s.geometry.setDrawRange(0, Math.floor((SEGS + 1) * g));
-        (s.material as LineBasicMaterial).opacity = (si === 0 ? 0.9 : 0.4) * focus;
-      });
+      const focus = this.hovered ? (l.a === this.hovered || l.b === this.hovered ? 1 : 0.35) : 1;
+      // Lobes are a share of each form; closer kin share a thicker waist.
+      const rA = l.a.radius * 0.34, rB = l.b.radius * 0.34;
+      const waist = Math.min(rA, rB) * (0.12 + 0.3 * (l.k - 0.6) / 0.4);
+      l.bridge.update(pa, na, pb, nb, rA, rB, waist, g, focus);
       // Label at the middle of the main strand, only for the form in focus.
-      const show = this.hovered && (l.a === this.hovered || l.b === this.hovered) && g > 0.9;
-      const mid = new Vector3().addVectors(pa, pb).multiplyScalar(0.5).addScaledVector(side, 0.12);
+      const show = this.hovered && (l.a === this.hovered || l.b === this.hovered) && g > 0.98;
+      const mid = new Vector3().addVectors(pa, pb).multiplyScalar(0.5).addScaledVector(side, 0.14);
       const p = this.project(mid);
       l.label.style.transform = `translate(${p.x + 6}px, ${p.y - 8}px)`;
       l.label.style.opacity = show ? '1' : '0';

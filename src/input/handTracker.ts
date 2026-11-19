@@ -79,6 +79,14 @@ export class HandTracker {
     this.lastT = data.t;
     const out: HandFrame[] = [];
     const now = performance.now();
+    // Two hands need two identities. The classifier sometimes labels both
+    // hands the same; then fall back to which side of the image each is on.
+    if (data.hands.length === 2 && data.hands[0].right === data.hands[1].right) {
+      const [a, b] = data.hands;
+      const aLeftInImage = a.lm[0] < b.lm[0]; // image x of the wrist
+      a.right = aLeftInImage; // camera image is unmirrored: image-left is the person's right
+      b.right = !aLeftInImage;
+    }
     for (const h of data.hands) {
       const key = h.right ? 'R' : 'L';
       let slot = this.filters.get(key);

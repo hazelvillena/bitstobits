@@ -30,10 +30,10 @@ Type scale: 10 / 11.5 / 13 / 15 / 30 px, display `clamp(44px, 5vw, 72px)` at wei
 ## Components
 
 - **Buttons**: pill shaped. Primary is solid ink; ghost is a hairline.
-- **Tool list**: line glyph and name. The hand pose or key shows on hover or when active.
+- **Toolbar**: a translucent pill of tool buttons (glyph, name, key) at the bottom of the sculpt pane; the active tool is solid ink. Beside it, a brush size control: minus, a dot that grows with the size, plus. Hand gestures live in tooltips.
 - **Hand overlay**: joints as small open circles, bones as hairlines, and dimension lines with millimetre lengths during calibration. Engaged fingertips fill with signal and pulse.
 - **Inspector**: soft translucent panel with the name, form number, trait bars and relatives with their kinship percentage.
-- **Ligaments**: three thin strands, one stronger. They grow in when created and fade back when another form is in focus.
+- **Bridges**: lobes of each form's own matter that reach out and meet in a narrow waist, with a fine trait-colour band at the meeting point. They grow from both sides and recede when another form is in focus.
 
 ## Materials
 
@@ -43,7 +43,7 @@ Four materials, one data model. Each reads curvature (hollow to ridge), compress
 |---|---|---|
 | Pearl | Iridescent thin film over a soft pale body, studio reflections | Hue shifts with angle; hollows run warm, ridges cool, pressed areas shift the film |
 | Obsidian | Black glass, sharp highlights | Pressed areas carry a deep violet; ridges catch a blue sheen |
-| Graphic | Bold smooth colour field, ultramarine through magenta to coral | Position on the ramp is curvature minus pressure |
+| Graphic | Bold smooth lime field, deep green through lime to pale chartreuse | Position on the ramp is curvature minus pressure |
 | Lines | The original contour drawing | Line colour is curvature, line density is compression |
 
 The particle skin is part of each language: full in Lines, a fine pale dust on Pearl and Obsidian, absent on Graphic. The brush appears as one crisp outline on the surface.

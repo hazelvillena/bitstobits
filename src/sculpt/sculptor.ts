@@ -18,6 +18,7 @@ interface ExtrudeStroke {
   wpp: number; // world units per screen pixel at the grab depth
   amount: number; // eased, signed distance along N
   lat: Vector3; // eased sideways bend (local)
+  vid: number; // stroke id in the volume
 }
 
 /**
@@ -95,8 +96,8 @@ export class Sculptor {
     ny += -1 * (1 - facing);
     const l = Math.hypot(nx, ny) || 1;
 
-    this.vol.beginStroke();
-    this.strokes.set(id, { P, N, sx: nx / l, sy: ny / l, wpp, amount: 0, lat: new Vector3() });
+    const vid = this.vol.beginStroke();
+    this.strokes.set(id, { P, N, sx: nx / l, sy: ny / l, wpp, amount: 0, lat: new Vector3(), vid });
     return true;
   }
 
@@ -124,7 +125,10 @@ export class Sculptor {
   }
 
   endExtrude(id: string) {
-    if (this.strokes.delete(id)) this.vol.endStroke();
+    const st = this.strokes.get(id);
+    if (!st) return;
+    this.strokes.delete(id);
+    this.vol.endStroke(st.vid);
   }
 
   private applyExtrude(st: ExtrudeStroke) {
@@ -132,16 +136,16 @@ export class Sculptor {
     const { P, N, amount, lat } = st;
     if (amount >= 0) {
       // Root inside the body so the face rises out of it.
-      const start = P.clone().addScaledVector(N, -r * 0.6);
+      const start = P.clone().addScaledVector(N, -r * 0.8);
       const ctrl = P.clone().addScaledVector(N, amount * 0.6);
       // The face sits just below the surface until the drag passes a small dead zone.
-      const end = P.clone().addScaledVector(N, amount - r * 0.3).add(lat);
-      this.vol.extrude(bezier(start, ctrl, end, 5), r, 1);
+      const end = P.clone().addScaledVector(N, amount - r * 0.25).add(lat);
+      this.vol.setStroke(st.vid, bezier(start, ctrl, end, 8), r, 1);
     } else {
       // Inset: a flat-bottomed pocket aligned to the face.
       const start = P.clone().addScaledVector(N, r * 0.5);
       const end = P.clone().addScaledVector(N, amount).addScaledVector(lat, 0.5);
-      this.vol.extrude([start, end], r, -1);
+      this.vol.setStroke(st.vid, [start, end], r, -1);
     }
   }
 }

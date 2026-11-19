@@ -11,36 +11,63 @@ const GLYPHS: Record<ToolKind, string> = {
 };
 
 export class Chrome {
-  private toolEls = new Map<ToolKind, HTMLLIElement>();
+  private toolEls = new Map<ToolKind, HTMLButtonElement>();
+  private sizeEl: HTMLElement;
+  onBrush: (dir: -1 | 1) => void = () => {};
 
   constructor() {
-    const list = $('tools');
+    const bar = $('tools');
+    const group = document.createElement('div');
+    group.className = 'tool-group';
+    group.setAttribute('role', 'radiogroup');
+    group.setAttribute('aria-label', 'Tool');
     for (const t of TOOLS) {
-      const li = document.createElement('li');
-      li.innerHTML = `<svg class="glyph" viewBox="0 0 22 16">${GLYPHS[t.kind]}</svg><span>${t.name}</span><span class="how" data-hand="${t.hand}" data-key="${t.key}"></span>`;
-      li.dataset.tool = t.kind;
-      list.appendChild(li);
-      this.toolEls.set(t.kind, li);
+      const b = document.createElement('button');
+      b.className = 'tool';
+      b.type = 'button';
+      b.setAttribute('role', 'radio');
+      b.dataset.tool = t.kind;
+      b.dataset.key = t.key;
+      b.dataset.hand = t.hand;
+      b.innerHTML = `<svg class="glyph" viewBox="0 0 22 16">${GLYPHS[t.kind]}</svg><span>${t.name}</span><kbd>${t.key}</kbd>`;
+      group.appendChild(b);
+      this.toolEls.set(t.kind, b);
     }
+    bar.appendChild(group);
+
+    // Brush size: minus, a dot that scales with the size, plus.
+    const size = document.createElement('div');
+    size.className = 'size-group';
+    size.innerHTML = `<button type="button" aria-label="Smaller brush">−</button><span class="size-dot" aria-hidden="true"><i></i></span><button type="button" aria-label="Larger brush">+</button>`;
+    const [minus, plus] = size.querySelectorAll('button');
+    minus.addEventListener('click', () => this.onBrush(-1));
+    plus.addEventListener('click', () => this.onBrush(1));
+    this.sizeEl = size.querySelector('.size-dot i')!;
+    bar.appendChild(size);
   }
 
   onToolClick(fn: (t: ToolKind) => void) {
-    for (const [kind, li] of this.toolEls) {
-      li.style.cursor = 'pointer';
-      li.addEventListener('click', () => fn(kind));
-    }
+    for (const [kind, b] of this.toolEls) b.addEventListener('click', () => fn(kind));
   }
 
-  /** Show either the hand pose or the keyboard key beside each tool. */
+  /** The hand gesture for each tool lives in its tooltip, not on screen. */
   setInputMode(mode: 'hands' | 'pointer') {
-    for (const li of this.toolEls.values()) {
-      const how = li.querySelector<HTMLElement>('.how')!;
-      how.textContent = mode === 'hands' ? `${how.dataset.key}  ${how.dataset.hand}` : how.dataset.key!;
+    for (const b of this.toolEls.values()) {
+      b.title = mode === 'hands' ? `Pinch to start, then ${b.dataset.hand!.replace('pinch and ', '')}` : `Key ${b.dataset.key}`;
     }
   }
 
   setActive(kind: ToolKind | null) {
-    for (const [k, li] of this.toolEls) li.classList.toggle('active', k === kind);
+    for (const [k, b] of this.toolEls) {
+      b.classList.toggle('active', k === kind);
+      b.setAttribute('aria-checked', String(k === kind));
+    }
+  }
+
+  /** Brush radius 0.05 … 0.28 shown as a dot from 4 to 14 px. */
+  setBrush(r: number) {
+    const px = 4 + ((r - 0.05) / 0.23) * 10;
+    this.sizeEl.style.width = this.sizeEl.style.height = `${px.toFixed(1)}px`;
   }
 
   setSpecimenNumber(n: number) {

@@ -15,23 +15,23 @@ Status: working prototype. See [DECISIONS.md](DECISIONS.md) for what changed and
 
 ## Tools and gestures
 
-Pick a tool with keys 1 to 5 or by clicking it. Then **aim and pinch**: your index fingertip points at the form like a mouse cursor, and pinching thumb and index starts the tool exactly where you aimed. Release to stop.
+Pick a tool with keys 1 to 4 or the toolbar at the bottom of the sculpt pane. Then **aim and pinch**: your index fingertip points at the form like a mouse cursor, and pinching thumb and index starts the tool exactly where you aimed. Release to stop.
 
 | Key | Tool | While pinched (or mouse held) |
 |---|---|---|
 | 1 | Extrude | Drag along the face's outward direction to extrude it, the other way to inset it. Drag sideways to bend it; the end face turns toward the direction of travel. Moving back undoes, so you can find the right length. |
 | 2 | Pierce | Hold to bore slowly; move to carve a groove |
 | 3 | Smooth | Move across the surface |
-| 4 | Rotate | Drag anywhere (mouse: right drag). The form follows your hand exactly and glides briefly on release. |
+| 4 | Rotate | Drag anywhere (mouse: right drag). The form follows your hand exactly and glides briefly on release. It never turns on its own. |
 | Enter | Keep | |
 
-`[` and `]` change the brush size; the surface shows its exact outline. `M` cycles the material. Every tool eases in over a third of a second and is rate-limited, so changes are small and deliberate.
+Both hands can extrude at the same time. `[` and `]` (or the size control in the toolbar) change the brush size; the surface shows its exact outline. `M` cycles the material. Every tool eases in over a third of a second and is rate-limited, so changes are small and deliberate.
 
 Other keys: `N` start over, `C` recalibrate. Drag the divider to resize the panes (double-click for an even split). `?layout=rows` stacks them for a portrait screen.
 
 ## How it works
 
-**Matter.** A 96³ signed distance field (each point stores its distance to the surface) on the CPU is the source of truth. Brushes edit only the voxels they touch. The GPU gets a half-float copy plus an attribute texture (compression, heat). Rendering is a raymarch in a fragment shader that writes real depth, so the particle skin sorts correctly against it.
+**Matter.** A 128³ signed distance field (each point stores its distance to the surface) on the CPU is the source of truth. Brushes edit only the voxels they touch. The GPU gets a half-float copy plus an attribute texture (compression, heat). Rendering is a raymarch in a fragment shader that writes real depth, so the particle skin sorts correctly against it.
 
 **Particle skin.** 56k points with no CPU state. Each frame the vertex shader projects a slowly rotating seed onto the surface, so particles slide over the form and scatter from fingertips.
 
@@ -55,7 +55,9 @@ Other keys: `N` start over, `C` recalibrate. Drag the divider to resize the pane
 
 Forms are stored in IndexedDB.
 
-**Kinship.** A weighted distance between trait vectors becomes a kinship score (0 to 1). Each form links to up to 3 relatives above 0.62. The explanation for a link is the trait the two forms share most distinctively against the rest of the collection. Ligaments are three bezier strands between support points on each surface, coloured by that trait.
+**Bridges.** Related forms are joined by symbiotic bridges: each form grows a lobe of its own matter toward its relative, and the lobes meet in a narrow waist. Each side wears its own form's material, and a fine band at the waist in the trait colour says why they are joined. Closer kin get a thicker waist.
+
+**Kinship.** A weighted distance between trait vectors becomes a kinship score (0 to 1). Each form links to up to 3 relatives above 0.62. The explanation for a link is the trait the two forms share most distinctively against the rest of the collection. Each form keeps up to two relatives.
 
 ## Code map
 

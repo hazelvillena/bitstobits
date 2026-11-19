@@ -282,40 +282,61 @@ export class Volume {
   }
 
   // ───────────── Extrude (face) ─────────────
+  // Strokes share one session: a snapshot taken when the first stroke
+  // begins. Every active (and recently ended) stroke is replayed onto that
+  // snapshot each update, so two hands can extrude at once without either
+  // one baking the other in twice.
   private snapSdf: Float32Array | null = null;
   private snapComp: Float32Array | null = null;
-  private strokeMin = [0, 0, 0];
-  private strokeMax = [0, 0, 0];
-  private stroking = false;
+  private session = false;
+  private strokes = new Map<number, { path: Vector3[]; r: number; sign: 1 | -1; min: number[]; max: number[]; accMin: number[]; accMax: number[]; live: boolean }>();
+  private strokesDirty = false;
+  private tmpV = new Vector3();
+  private nextStroke = 1;
 
-  /** Freeze the form at the start of a stroke. Strokes rebuild from this. */
-  beginStroke() {
-    if (!this.snapSdf) {
-      this.snapSdf = new Float32Array(this.sdf.length);
-      this.snapComp = new Float32Array(this.comp.length);
+  beginStroke(): number {
+    if (!this.session) {
+      if (!this.snapSdf) {
+        this.snapSdf = new Float32Array(this.sdf.length);
+        this.snapComp = new Float32Array(this.comp.length);
+      }
+      this.snapSdf.set(this.sdf);
+      this.snapComp!.set(this.comp);
+      this.strokes.clear();
+      this.session = true;
     }
-    this.snapSdf.set(this.sdf);
-    this.snapComp!.set(this.comp);
-    this.strokeMin = [Infinity, Infinity, Infinity];
-    this.strokeMax = [-Infinity, -Infinity, -Infinity];
-    this.stroking = true;
+    const id = this.nextStroke++;
+    this.strokes.set(id, {
+      path: [], r: 0, sign: 1, min: [0, 0, 0], max: [0, 0, 0],
+      accMin: [Infinity, Infinity, Infinity], accMax: [-Infinity, -Infinity, -Infinity], live: true,
+    });
+    return id;
   }
-  endStroke() {
-    this.stroking = false;
+
+  endStroke(id: number) {
+    // Apply any pending movement before this stroke stops being rebuilt.
+    if (this.strokesDirty && this.session) {
+      this.rebuild();
+      this.strokesDirty = false;
+    }
+    const st = this.strokes.get(id);
+    if (st) st.live = false;
+    // When nobody is extruding any more, the result simply stays.
+    if (![...this.strokes.values()].some((s) => s.live)) {
+      this.session = false;
+      this.strokes.clear();
+    }
   }
 
   /**
-   * Extrude (sign +1) or inset (sign -1) a rounded face swept along `path`.
-   * Rebuilt from the stroke snapshot every call, so the result is always the
-   * clean original plus exactly one extrusion: moving back undoes it, and
-   * nothing accumulates. The last segment's end is a flat face that points
-   * along the direction of travel.
+   * Set a stroke's shape: a rounded face swept along `path`, added (sign +1)
+   * or inset (sign -1). The last segment ends in a flat face pointing along
+   * the direction of travel.
    */
-  extrude(path: Vector3[], r: number, sign: 1 | -1) {
-    if (!this.stroking || !this.snapSdf || path.length < 2) return;
-    const snap = this.snapSdf, snapC = this.snapComp!;
-    const k = sign > 0 ? r * 0.75 : r * 0.35; // soft fillet into the body
-    const re = r * 0.38; // edge rounding of the face
+  setStroke(id: number, path: Vector3[], r: number, sign: 1 | -1) {
+    const st = this.strokes.get(id);
+    if (!st || !this.session || path.length < 2) return;
+    const k = sign > 0 ? r * 0.42 : r * 0.22;
     const pad = r + k + this.h * 2;
     const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
     for (const q of path) {
@@ -323,27 +344,48 @@ export class Volume {
       mn[1] = Math.min(mn[1], q.y - pad); mx[1] = Math.max(mx[1], q.y + pad);
       mn[2] = Math.min(mn[2], q.z - pad); mx[2] = Math.max(mx[2], q.z + pad);
     }
-    // Visit the union with everything this stroke has touched, so shrinking restores.
+    Object.assign(st, { path, r, sign, min: mn, max: mx });
     for (let a = 0; a < 3; a++) {
-      this.strokeMin[a] = Math.min(this.strokeMin[a], mn[a]);
-      this.strokeMax[a] = Math.max(this.strokeMax[a], mx[a]);
+      st.accMin[a] = Math.min(st.accMin[a], mn[a]);
+      st.accMax[a] = Math.max(st.accMax[a], mx[a]);
     }
+    // Rebuilt once per frame in upload(), however many hands are extruding.
+    this.strokesDirty = true;
+  }
+
+  private rebuild() {
+    const snap = this.snapSdf!, snapC = this.snapComp!;
+    const list = [...this.strokes.values()].filter((s) => s.path.length >= 2);
     const L = Volume.LIMIT;
-    const compShift = sign > 0 ? -0.22 : 0.3;
-    const segK = r * 0.3;
-    this.regionBox(this.strokeMin, this.strokeMax, (p, x, y, z) => {
-      let shape = Infinity;
-      for (let s = 0; s < path.length - 1; s++) {
-        const d = sdRoundCylinder(x, y, z, path[s], path[s + 1], r, re);
-        shape = s === 0 ? d : smin(shape, d, segK);
+    // Only the areas live strokes have touched need rebuilding; ended strokes
+    // stay composed wherever a live one overlaps them.
+    for (const live of list) if (live.live) this.regionBox(live.accMin, live.accMax, (p, x, y, z) => {
+      let d = snap[p];
+      let c = snapC[p];
+      let infl = 0;
+      for (const st of list) {
+        if (x < st.min[0] || x > st.max[0] || y < st.min[1] || y > st.max[1] || z < st.min[2] || z > st.max[2]) continue;
+        const r = st.r;
+        const k = st.sign > 0 ? r * 0.42 : r * 0.22;
+        const re = r * 0.24; // edge rounding of the face: crisp but soft
+        // One seamless swept tube (capsules), ending in a flat rounded face.
+        const last = st.path.length - 2;
+        let shape = Infinity;
+        for (let s = 0; s < last; s++) shape = Math.min(shape, sdCapsule(x, y, z, st.path[s], st.path[s + 1], r));
+        // Start the end piece slightly back inside the tube so its rounded
+        // back edge is buried and the joint is seamless.
+        const a = st.path[last], b = st.path[last + 1];
+        const back = this.tmpV.copy(a).sub(b).normalize().multiplyScalar(r * 0.6).add(a);
+        shape = Math.min(shape, sdRoundCylinder(x, y, z, last > 0 ? back : a, b, r, re));
+        d = st.sign > 0 ? smin(d, shape, k) : smax(d, -shape, k);
+        const w = Math.max(0, 1 - Math.max(shape, 0) / (k + 0.03));
+        if (w > 0) {
+          c = Math.min(1, Math.max(0, c + (st.sign > 0 ? -0.22 : 0.3) * w));
+          infl = Math.max(infl, w);
+        }
       }
-      const d0 = snap[p];
-      let d = sign > 0 ? smin(d0, shape, k) : smax(d0, -shape, k);
-      d = Math.max(d, Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) - L);
-      this.sdf[p] = d;
-      const infl = Math.max(0, 1 - Math.max(shape, 0) / (k + 0.04));
-      const c0 = snapC[p];
-      this.comp[p] = infl > 0 ? Math.min(1, Math.max(0, c0 + compShift * infl)) : c0;
+      this.sdf[p] = Math.max(d, Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) - L);
+      this.comp[p] = c;
       if (infl > 0) this.heat[p] = Math.max(this.heat[p], infl * 0.7);
       this.writeVoxel(p);
     });
@@ -351,6 +393,10 @@ export class Volume {
 
   /** Push pending changes to the GPU. Call once per frame. */
   upload() {
+    if (this.strokesDirty && this.session) {
+      this.rebuild();
+      this.strokesDirty = false;
+    }
     if (this.sdfDirty) {
       this.sdfTex.needsUpdate = true;
       this.sdfDirty = false;
@@ -360,6 +406,14 @@ export class Volume {
       this.attrDirty = false;
     }
   }
+}
+
+function sdCapsule(px: number, py: number, pz: number, a: Vector3, b: Vector3, r: number) {
+  const bx = b.x - a.x, by = b.y - a.y, bz = b.z - a.z;
+  const qx = px - a.x, qy = py - a.y, qz = pz - a.z;
+  const t = Math.min(1, Math.max(0, (qx * bx + qy * by + qz * bz) / (bx * bx + by * by + bz * bz || 1e-9)));
+  const dx = qx - bx * t, dy = qy - by * t, dz = qz - bz * t;
+  return Math.sqrt(dx * dx + dy * dy + dz * dz) - r;
 }
 
 /** Cylinder from a to b with radius r and rounded edges re (flat ends). */
