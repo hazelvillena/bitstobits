@@ -70,10 +70,34 @@ export class Sculptor {
     return best;
   }
 
-  /** Where a grab at this world point would land (snapped to a face if near one). */
-  snapWorld(world: Vector3) {
-    const f = this.snap(this.local(world, new Vector3()));
-    return f ? this.atelier.object.localToWorld(f.P.clone()) : world;
+  /** A remembered face within `px` pixels of a screen point, nearest first. */
+  faceNear(sx: number, sy: number, px = 40) {
+    let best: { P: Vector3; N: Vector3 } | null = null;
+    let bd = px;
+    const toCam = new Vector3();
+    for (const f of this.faces) {
+      const w = this.faceWorld(f);
+      // Only faces turned toward the viewer can be grabbed.
+      const n = f.N.clone().applyQuaternion(this.atelier.object.quaternion);
+      if (n.dot(toCam.copy(this.atelier.camera.position).sub(w).normalize()) < -0.15) continue;
+      const p = this.atelier.project(w);
+      const d = Math.hypot(p.x - sx, p.y - sy);
+      if (d < bd) {
+        bd = d;
+        best = f;
+      }
+    }
+    return best;
+  }
+
+  faceWorld(f: { P: Vector3 }) {
+    return this.atelier.object.localToWorld(f.P.clone());
+  }
+
+  /** Where a grab at this screen point would land: a nearby face, or the surface. */
+  snapScreen(sx: number, sy: number, fallback: Vector3) {
+    const f = this.faceNear(sx, sy);
+    return f ? this.faceWorld(f) : fallback;
   }
 
   private get vol() {
@@ -109,24 +133,36 @@ export class Sculptor {
    *   turns so that face points along the pull, and stays turned.
    * - Press sinks the face into a soft, flat pocket; the form holds still.
    */
-  beginStroke(id: string, hit: { point: Vector3; dist: number }, kind: StrokeKind) {
-    let P = this.local(hit.point, new Vector3());
-    let N: Vector3;
-    const face = this.snap(P);
+  /**
+   * `aim` is the screen point the person aimed at: a remembered face near it
+   * (on screen) wins, so the end of a piece is easy to catch again.
+   */
+  beginStroke(id: string, hit: { point: Vector3; dist: number } | null, kind: StrokeKind, aim?: { x: number; y: number }) {
+    const face = aim ? this.faceNear(aim.x, aim.y) : hit ? this.snap(this.local(hit.point, new Vector3())) : null;
+    let P: Vector3, N: Vector3, world: Vector3;
     if (face) {
       // Continue from a remembered face, along its own direction.
       P = face.P.clone();
       N = face.N.clone();
+      world = this.faceWorld(face);
     } else {
+      if (!hit) return false;
+      P = this.local(hit.point, new Vector3());
       if (this.vol.sample(P.x, P.y, P.z) > 0.05) return false;
       N = this.vol.gradient(P, new Vector3());
+      world = hit.point;
     }
-    const s0 = this.atelier.project(hit.point);
-    const p0 = this.atelier.pointOnRay(s0.x, s0.y, hit.dist, new Vector3());
-    const p1 = this.atelier.pointOnRay(s0.x + 1, s0.y, hit.dist, new Vector3());
+    const dist = this.atelier.camera.position.distanceTo(world);
+    const s0 = this.atelier.project(world);
+    const p0 = this.atelier.pointOnRay(s0.x, s0.y, dist, new Vector3());
+    const p1 = this.atelier.pointOnRay(s0.x + 1, s0.y, dist, new Vector3());
     const wpp = p0.distanceTo(p1) / this.atelier.object.scale.x;
     const vid = this.vol.beginStroke();
-    this.strokes.set(id, { kind, P, N, wpp, amount: 0, vid, end: P.clone() });
+    // Start with a small swell so the grab is visible the moment it takes.
+    const swell = this.brush * (kind === 'press' ? 0.12 : 0.3);
+    const st: Stroke = { kind, P, N, wpp, amount: swell, vid, end: P.clone() };
+    this.strokes.set(id, st);
+    this.apply(st);
     return true;
   }
 
@@ -151,8 +187,10 @@ export class Sculptor {
     // Length follows the pull with a little weight; never past the volume,
     // and a press never sinks deeper than the form can take.
     const max = st.kind === 'press' ? Math.min(0.32, this.depthInside(st) * 0.7) : this.reach(st);
-    const target = Math.min(max, len * st.wpp * (st.kind === 'press' ? 0.4 : 0.6));
-    st.amount += (target - st.amount) * 0.22;
+    // The swell holds until the pull goes past it.
+    const swell = this.brush * (st.kind === 'press' ? 0.12 : 0.3);
+    const target = Math.min(max, Math.max(swell, len * st.wpp * (st.kind === 'press' ? 0.4 : 0.6)));
+    st.amount += (target - st.amount) * 0.35;
     this.apply(st);
     this.atelier.touch();
     return true;
@@ -174,6 +212,9 @@ export class Sculptor {
     const st = this.strokes.get(id);
     if (!st) return;
     this.strokes.delete(id);
+    // A pinch released without a pull leaves nothing behind.
+    const swell = this.brush * (st.kind === 'press' ? 0.12 : 0.3);
+    if (st.amount <= swell * 1.15) this.vol.cancelStroke(st.vid);
     this.vol.endStroke(st.vid);
     // Remember the end face if the stroke made something.
     if (st.amount > this.brush * 0.4) {
@@ -220,8 +261,8 @@ export class Sculptor {
       // Root below the surface so the shape grows out of the body; the tip
       // stays hidden until the pull passes a small dead zone.
       start = P.clone().addScaledVector(N, -r * 0.9);
-      end = P.clone().addScaledVector(N, amount - r * (0.3 + prof.tip * 0.5));
-      st.end.copy(P).addScaledVector(N, Math.max(0, amount - r * 0.3));
+      end = P.clone().addScaledVector(N, amount - r * (0.15 + prof.tip * 0.25));
+      st.end.copy(P).addScaledVector(N, Math.max(0, amount - r * 0.15));
     }
     const path: Vector3[] = [];
     for (let i = 0; i <= 12; i++) path.push(start.clone().lerp(end, i / 12));

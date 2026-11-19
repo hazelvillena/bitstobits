@@ -63,9 +63,13 @@ export class HandOverlay {
   // Display-only easing of landmarks: the drawing glides instead of
   // snapping to each camera frame (interaction still uses the raw data).
   private shown = new Map<boolean, Float32Array>();
+  private pulses = new Map<boolean, number>();
+  private engagedBefore = new Map<boolean, boolean>();
+  private lastDt = 0;
 
   draw(hands: HandFrame[], mode: OverlayMode, dt: number, mmPerUnit: number, active?: Map<HandFrame, HandActivity>) {
     this.t += dt;
+    this.lastDt = dt;
     const c = this.ctx;
     this.clear();
     c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -148,35 +152,32 @@ export class HandOverlay {
       c.restore();
     }
 
-    // Pinch ring: an open circle between thumb and index that closes as the
-    // fingers meet. Solid signal once the tool is acting.
+    // Pinch: a soft dot between thumb and index that grows as the fingers
+    // close, turns lime when the pinch holds, and pulses once as a grab takes.
     if (act && mode === 'sculpt') {
       const mx = (X(4) + X(8)) / 2, my = (Y(4) + Y(8)) / 2;
-      const r = 11;
-      c.lineWidth = 1.25;
+      const held = act.engaged || act.pinch >= 0.999;
+      const r = 2.5 + 5 * act.pinch;
       c.beginPath();
       c.arc(mx, my, r, 0, Math.PI * 2);
-      c.strokeStyle = `rgba(${INK}, ${act.onForm ? 0.28 : 0.14})`;
-      c.stroke();
-      if (act.pinch > 0.02) {
+      c.fillStyle = held ? SIGNAL : `rgba(${INK}, ${0.18 + 0.3 * act.pinch})`;
+      c.fill();
+      const key = h.right;
+      const was = this.engagedBefore.get(key) ?? false;
+      if (act.engaged && !was) this.pulses.set(key, 0);
+      this.engagedBefore.set(key, act.engaged);
+      const t = this.pulses.get(key);
+      if (t !== undefined) {
+        const k = Math.min(1, t / 0.45);
         c.beginPath();
-        c.arc(mx, my, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * act.pinch);
-        c.strokeStyle = SIGNAL;
+        c.arc(mx, my, r + 4 + k * 18, 0, Math.PI * 2);
+        c.lineWidth = 1.5;
+        c.strokeStyle = `rgba(169, 184, 46, ${0.6 * (1 - k)})`;
         c.stroke();
-      }
-      if (act.engaged) {
-        c.beginPath();
-        c.arc(mx, my, 4.5, 0, Math.PI * 2);
-        c.fillStyle = SIGNAL;
-        c.fill();
-        const pulse = (this.t * 1.4) % 1;
-        c.beginPath();
-        c.arc(mx, my, r + 2 + pulse * 12, 0, Math.PI * 2);
-        c.strokeStyle = `rgba(169, 184, 46, ${0.5 * (1 - pulse)})`;
-        c.stroke();
+        if (k >= 1) this.pulses.delete(key);
+        else this.pulses.set(key, t + this.lastDt);
       }
     }
-
   }
 
   /** Architectural dimension line alongside a finger, with its length. */

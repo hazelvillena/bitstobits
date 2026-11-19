@@ -2,6 +2,14 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-19 (pinch that answers immediately)
+
+**Why grabbing felt slow.** Several delays stacked: a pinch had to hold for 100 ms with both distance and index curl true (one flickering frame restarted it); camera, model and smoothing latency; a hidden dead zone of about 35 px before an extrusion appeared, plus easing; the aim drifting as the fingers closed, so the grab could miss and never retry; face snapping measured in 3D, which a drifting aim rarely met; and a filling ring that looked like a loading spinner.
+
+**Fixes.** A pinch registers about one camera frame after the fingertips close (lenient curl check: it only rules out a straight pointer; a clearly closed pinch always counts), with lighter smoothing. The aim locks as the fingers start closing. While pinched and not yet holding, the grab keeps trying, so a pinch that starts just off the form still catches it. Snapping to remembered end faces is measured on screen (within 40 px, faces turned toward you). Every grab shows a small swell at once and the dead zone is a third of what it was; a pinch released without pulling leaves nothing behind. The indicator is a dot that grows as you close and pulses once when the grab takes. Simulated: a closing pinch took hold 84 ms after the fingers began to close.
+
+**Kept forms are easier to see.** Pale finishes nearly vanished on silver; forms in the collection now have a soft darker edge, and a newly kept form glows lime for a few seconds as it arrives.
+
 ## 2026-11-19 (diamond with volume)
 
 **Diamond is a gem, not a slab.** The flat diamond is now a rhombic bipyramid: the same diamond outline, with each large face rising to a point, edges softly rounded by a soft maximum of its face planes.

@@ -260,7 +260,7 @@ async function accept() {
   const spec = createSpecimen(atelier.volume, specimens.length + 1, atelier.material);
   await atelier.dissolveOut();
   specimens.push(spec);
-  field.add(spec, true);
+  field.add(spec, true, true);
   updateCount();
   saveSpecimens(specimens);
   startOver();

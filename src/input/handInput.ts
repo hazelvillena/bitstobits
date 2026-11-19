@@ -60,9 +60,11 @@ export class HandInput {
   }
 
   /**
-   * Pinch, measured in 3D (metres) so pointing never reads as pinching.
-   * Starts only after the fingers have stayed closed for 80 ms, releases
-   * past a wider distance (hysteresis), using this hand's calibration.
+   * Pinch, measured in 3D relative to palm width. It registers as the
+   * fingertips close (after about one camera frame), releases past a wider
+   * distance (hysteresis), using this hand's calibration. The index-curl
+   * check is lenient: it only rules out a straight pointing finger, and a
+   * clearly closed pinch counts regardless.
    */
   private pinchState(h: HandFrame, dt: number) {
     const { pinchStart, pinchRelease, pinchOpen, bendMin } = this.tracker.cal;
@@ -72,10 +74,11 @@ export class HandInput {
     if (st.on) {
       if (d > pinchRelease) st.on = false;
     } else {
-      // Fingertips together and the index curled: a pointing hand never counts.
-      const closing = d < pinchStart && h.indexBend > bendMin;
-      st.t = closing ? st.t + dt : 0;
-      if (st.t >= 0.1) st.on = true;
+      const near = d < pinchStart * 1.15;
+      const clearlyClosed = d < pinchStart * 0.75;
+      const notPointing = h.indexBend > bendMin * 0.6;
+      st.t = near && (notPointing || clearlyClosed) ? st.t + dt : 0;
+      if (st.t >= 0.035) st.on = true;
     }
     this.pinching.set(h.right, st);
     const amount = Math.min(1, Math.max(0, (pinchOpen - d) / (pinchOpen - pinchStart)));
@@ -97,15 +100,19 @@ export class HandInput {
       const tip = this.screen(h, 8);
       const mid = { x: (tip.x + this.screen(h, 4).x) / 2, y: (tip.y + this.screen(h, 4).y) / 2 };
 
-      // Aim with the index tip while open. Once pinching, the index moves
-      // toward the thumb, so freeze the aim and follow the pinch's motion.
-      if (!pinch.now) this.aim.set(key, tip);
+      // Aim with the index tip while the hand is open. As the fingers start
+      // to close, the tip moves toward the thumb, so the aim locks early and
+      // the grab lands where you were pointing.
+      if (!pinch.now && pinch.amount < 0.5) this.aim.set(key, tip);
       const aim = this.aim.get(key) ?? tip;
 
       let grab = this.grabs.get(key);
-      if (pinch.started) {
+      // While pinched and not yet holding anything, keep trying to grab: a
+      // pinch that starts just off the form still catches it.
+      if (pinch.now && !grab) {
         const hit = this.atelier.castSurface(aim.x, aim.y);
-        if (selected === 'turn' || hit) {
+        const face = isStroke(selected) && this.sculptor.faceNear(aim.x, aim.y);
+        if (selected === 'turn' || hit || face) {
           grab = {
             tool: selected,
             startX: mid.x, startY: mid.y,
@@ -115,7 +122,7 @@ export class HandInput {
             held: 0,
           };
           this.grabs.set(key, grab);
-          if (isStroke(selected) && hit && !this.sculptor.beginStroke(String(key), hit, selected)) {
+          if (isStroke(selected) && !this.sculptor.beginStroke(String(key), hit, selected, aim)) {
             this.grabs.delete(key);
             grab = undefined;
           }
@@ -157,9 +164,13 @@ export class HandInput {
       } else {
         // Hover: a quiet marker where the tool would land.
         const hit = this.atelier.castSurface(aim.x, aim.y);
-        if (hit) {
+        const face = isStroke(selected) ? this.sculptor.faceNear(aim.x, aim.y) : null;
+        if (face && !hit) {
           onForm = true;
-          const at = isStroke(selected) ? this.sculptor.snapWorld(hit.point) : hit.point;
+          tips.push({ pos: this.sculptor.faceWorld(face), strength: 0.35 + 0.5 * pinch.amount });
+        } else if (hit) {
+          onForm = true;
+          const at = isStroke(selected) ? this.sculptor.snapScreen(aim.x, aim.y, hit.point) : hit.point;
           tips.push({ pos: at, strength: 0.35 + 0.5 * pinch.amount });
         }
       }

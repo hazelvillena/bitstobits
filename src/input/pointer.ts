@@ -37,7 +37,7 @@ export class PointerInput {
       this.startY = this.lastY = this.y;
       if (!this.turning && isStroke(this.tool)) {
         const hit = this.atelier.castSurface(this.x, this.y);
-        this.extruding = !!hit && this.sculptor.beginStroke('pointer', hit, this.tool);
+        this.extruding = this.sculptor.beginStroke('pointer', hit, this.tool, { x: this.x, y: this.y });
       }
     });
     el.addEventListener('pointermove', (e) => this.setPos(e));
@@ -97,7 +97,7 @@ export class PointerInput {
       if (this.tool === 'drill') this.sculptor.drill(this.hit, this.d, dt, ease);
     }
     // Hover shows where a grab would land, snapped to a remembered face.
-    const at = !this.down && isStroke(this.tool) ? this.sculptor.snapWorld(this.hit.clone()) : this.hit.clone();
+    const at = !this.down && isStroke(this.tool) ? this.sculptor.snapScreen(this.x, this.y, this.hit.clone()) : this.hit.clone();
     return [{ pos: at, strength: this.down ? 1 : 0.5 }];
   }
 }

@@ -356,6 +356,15 @@ export class Volume {
     }
   }
 
+  /** Undo a stroke: the area it touched returns to the snapshot. */
+  cancelStroke(id: number) {
+    const st = this.strokes.get(id);
+    if (!st || !this.session) return;
+    st.shape = null;
+    this.rebuild();
+    this.strokesDirty = false;
+  }
+
   /** Set a stroke's current shape. Rebuilt once per frame in upload(). */
   setStroke(id: number, shape: StrokeShape) {
     const st = this.strokes.get(id);
@@ -373,9 +382,10 @@ export class Volume {
     const snap = this.snapSdf!, snapC = this.snapComp!;
     const list = [...this.strokes.values()].filter((s) => s.shape);
     const L = Volume.LIMIT;
-    // Only areas live strokes have touched need rebuilding; ended strokes
-    // stay composed wherever a live one overlaps them.
-    for (const live of list) if (live.live) this.regionBox(live.accMin, live.accMax, (p, x, y, z) => {
+    // Only areas live strokes have touched need rebuilding (including a
+    // cancelled one, so its area is restored); ended strokes stay composed
+    // wherever a live one overlaps them.
+    for (const live of this.strokes.values()) if (live.live && live.accMin[0] !== Infinity) this.regionBox(live.accMin, live.accMax, (p, x, y, z) => {
       let d = snap[p];
       let c = snapC[p];
       let infl = 0;

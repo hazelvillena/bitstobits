@@ -124,7 +124,7 @@ export class HandTracker {
       slot.seen = now;
       const lm = slot.f.apply(h.lm, dt);
       const r = readPose(lm, this.cal);
-      slot.pinch += (h.pinch - slot.pinch) * 0.6; // light smoothing; hysteresis does the rest
+      slot.pinch += (h.pinch - slot.pinch) * 0.85; // barely smoothed: closing should register at once
       const rel = slot.pinch / Math.max(0.04, h.palm);
       const indexBend = bend(lm, [5, 6, 7, 8], this.cal.aspect);
       out.push({ lm, right: h.right, pose: slot.d.push(r.pose), span: r.span, pinchRatio: r.pinchRatio, pinchDist: slot.pinch, pinchRel: rel, indexBend });

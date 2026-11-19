@@ -32,6 +32,8 @@ interface Item {
   sample: number[]; // vertex indices used for support queries
   label: HTMLDivElement;
   focus: number;
+  /** Just kept (not loaded or sampled): glows on arrival. */
+  fresh: boolean;
 }
 
 interface Link {
@@ -94,7 +96,7 @@ export class Field {
     this.half = { w: hh * (w / h), h: hh };
   }
 
-  add(spec: Specimen, fromSeam = true) {
+  add(spec: Specimen, fromSeam = true, fresh = false) {
     const { geo, radius: r0 } = specimenGeometry(spec);
     const mat = createSpecimenMaterial(spec.material);
     const mesh = new Mesh(geo, mat);
@@ -125,6 +127,7 @@ export class Field {
       sample,
       label,
       focus: 1,
+      fresh,
     };
     this.items.push(item);
     this.relink();
@@ -254,6 +257,9 @@ export class Field {
       const age = Math.min(1, (this.time - a.born) / 1.4);
       const e = 1 - Math.pow(1 - age, 3);
       a.mat.uniforms.uOpacity.value = e;
+      // A new form glows softly for its first few seconds, so you can find it.
+      const t = this.time - a.born;
+      a.mat.uniforms.uArrive.value = a.fresh ? Math.max(0, 1 - t / 4) * 0.8 : 0;
     }
 
     this.updateHover(dt);
