@@ -19,7 +19,7 @@ export class HandTracker {
 
   constructor(private video: HTMLVideoElement) {
     try {
-      const saved = localStorage.getItem('b2b.calibration.v2');
+      const saved = localStorage.getItem('b2b.calibration.v3');
       if (saved) {
         this.cal = { ...DEFAULT_CAL, ...JSON.parse(saved) };
         this.calibrated = true;
@@ -78,7 +78,7 @@ export class HandTracker {
 
   saveCalibration() {
     try {
-      localStorage.setItem('b2b.calibration.v2', JSON.stringify(this.cal));
+      localStorage.setItem('b2b.calibration.v3', JSON.stringify(this.cal));
       this.calibrated = true;
     } catch { /* ignore */ }
   }

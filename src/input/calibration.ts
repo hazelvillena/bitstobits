@@ -5,10 +5,10 @@ const $ = (id: string) => document.getElementById(id)!;
 
 type StepKey = 'open' | 'pinch' | 'practice';
 const STEPS: { key: StepKey; title: string; sub: string; hold: number }[] = [
-  { key: 'open', title: 'Hold up your open hand', sub: 'Palm toward the screen, about an arm away.', hold: 2.2 },
+  { key: 'open', title: 'Hold up your open hand', sub: 'Palm turned partly toward the screen, about an arm away. This angle tracks best.', hold: 2.2 },
   {
     key: 'pinch', title: 'Pinch thumb and index',
-    sub: 'Bring the tips of your thumb and index finger together, and hold. Pinching acts; pointing only aims.', hold: 1.6,
+    sub: 'Bring the tips of your thumb and index finger together, and hold. Pinching acts; pointing only aims.', hold: 1.4,
   },
   { key: 'practice', title: 'Try a pull', sub: 'Point at the form to aim, pinch, then pull out slowly. Let go when it looks right.', hold: 0 },
 ];
@@ -29,7 +29,7 @@ export class Calibration {
   private i = 0;
   private held = 0;
   private shown = 0;
-  private samples = { span: [] as number[], open: [] as number[], closed: [] as number[], openBend: [] as number[], pinchBend: [] as number[] };
+  private samples = { span: [] as number[], open: [] as number[], closed: [] as number[], open2: [] as number[], closed2: [] as number[], openBend: [] as number[], pinchBend: [] as number[] };
   private card = $('calib-card');
   private ring = this.card.querySelector<SVGCircleElement>('.ring-fill')!;
   private dots = [...this.card.querySelectorAll<HTMLElement>('.step-dots i')];
@@ -49,7 +49,7 @@ export class Calibration {
     this.i = 0;
     this.held = this.shown = this.practiced = 0;
     this.readyToRelease = false;
-    this.samples = { span: [], open: [], closed: [], openBend: [], pinchBend: [] };
+    this.samples = { span: [], open: [], closed: [], open2: [], closed2: [], openBend: [], pinchBend: [] };
     this.pos.placed = false;
     $('calibration').hidden = false;
     $('calibration').classList.remove('leaving');
@@ -92,15 +92,18 @@ export class Calibration {
         if (ok) {
           this.samples.span.push(palmSpan(h.lm, asp));
           this.samples.open.push(h.pinchRel);
+          this.samples.open2.push(h.pinchRatio);
           this.samples.openBend.push(h.indexBend);
         }
       } else {
         // A pinch: fingertips well inside their open spread, index curling.
-        const open = median(this.samples.open, DEFAULT_CAL.pinchOpen);
-        const straight = median(this.samples.openBend, 0.2);
-        ok = h.pinchRel < Math.min(0.45, open * 0.4) && h.indexBend > straight + 0.12;
+        // Either signal may say "closed": on screen or in 3D (see pinch.ts).
+        const open3 = median(this.samples.open, DEFAULT_CAL.open3);
+        const open2 = median(this.samples.open2, DEFAULT_CAL.open2);
+        ok = h.pinchRel < open3 * 0.4 || h.pinchRatio < open2 * 0.35;
         if (ok) {
           this.samples.closed.push(h.pinchRel);
+          this.samples.closed2.push(h.pinchRatio);
           this.samples.pinchBend.push(h.indexBend);
         }
       }
@@ -143,11 +146,11 @@ export class Calibration {
     // An adult palm (wrist to knuckle, blended with width) is roughly 90 mm.
     cal.mmPerUnit = 90 / cal.span;
     // Everything relative to palm width, so it holds at any distance.
-    const open = median(this.samples.open, DEFAULT_CAL.pinchOpen);
-    const closed = median(this.samples.closed, 0.15);
-    cal.pinchOpen = open;
-    cal.pinchStart = clamp(closed + (open - closed) * 0.2, 0.15, 0.42);
-    cal.pinchRelease = clamp(closed + (open - closed) * 0.38, cal.pinchStart + 0.08, 0.7);
+    // Your open and pinched gaps, for both signals; real pinches refine these later.
+    cal.open3 = median(this.samples.open, DEFAULT_CAL.open3);
+    cal.open2 = median(this.samples.open2, DEFAULT_CAL.open2);
+    cal.closed3 = clamp(median(this.samples.closed, DEFAULT_CAL.closed3), 0.05, cal.open3 * 0.6);
+    cal.closed2 = clamp(median(this.samples.closed2, DEFAULT_CAL.closed2), 0.03, cal.open2 * 0.6);
     // The index must curl at least partway toward your measured pinch.
     const straight = median(this.samples.openBend, 0.2);
     const curled = median(this.samples.pinchBend, 0.9);

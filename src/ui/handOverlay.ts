@@ -152,6 +152,26 @@ export class HandOverlay {
       c.restore();
     }
 
+    // Close but not registering: a gentle hint beside the fingertips.
+    if (act && mode === 'sculpt' && act.hint) {
+      c.save();
+      c.font = '500 12px "Instrument Sans", sans-serif';
+      c.fillStyle = `rgba(${INK}, 0.7)`;
+      c.textBaseline = 'middle';
+      c.fillText('Bring the tips fully together', (X(4) + X(8)) / 2 + 16, (Y(4) + Y(8)) / 2 - 18);
+      c.restore();
+    }
+
+    // Diagnostic view (key D): the live pinch numbers under the wrist.
+    if (act?.debug) {
+      c.save();
+      c.font = '500 11px "Instrument Sans", sans-serif';
+      c.fillStyle = `rgba(${INK}, 0.75)`;
+      c.textAlign = 'center';
+      act.debug.forEach((line, i) => c.fillText(line, X(0), Y(0) + 46 + i * 15));
+      c.restore();
+    }
+
     // Pinch: a soft dot between thumb and index that grows as the fingers
     // close, turns lime when the pinch holds, and pulses once as a grab takes.
     if (act && mode === 'sculpt') {

@@ -2,6 +2,12 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-19 (two-signal pinch)
+
+**Why pinches still failed.** A screenshot showed the pinch dot grey with the fingertips visibly touching: the pinch was never registered. Detection relied only on MediaPipe's 3D world-landmark distance, a learned depth estimate that MediaPipe notes is least accurate at oblique views and under occlusion; side-on, with the tips overlapping from the camera, it can read them as apart. A tight calibration pinch made it stricter still.
+
+**Two signals, the stronger wins** (`src/input/pinch.ts`). The 3D gap (over palm width) and the on-screen gap (over the palm's on-screen size) each become a 0 to 1 closeness against this hand's open and closed values; a pinch starts at 0.7 and releases below 0.5. A straight index with the tip clearly apart on screen (pointing) never counts. Every real pinch nudges the closed values toward what the hand actually does, and they are saved. A hint appears when you hover just short of a pinch; key D shows the live numbers under the wrist. Calibration records both signals and suggests turning the palm partly toward the screen. Simulated: side-on pinch grabs, front pinch grabs, pointing with the thumb tucked does not. Calibration key bumped to v3, so recalibrate once.
+
 ## 2026-11-19 (pinch that answers immediately)
 
 **Why grabbing felt slow.** Several delays stacked: a pinch had to hold for 100 ms with both distance and index curl true (one flickering frame restarted it); camera, model and smoothing latency; a hidden dead zone of about 35 px before an extrusion appeared, plus easing; the aim drifting as the fingers closed, so the grab could miss and never retry; face snapping measured in 3D, which a drifting aim rarely met; and a filling ring that looked like a loading spinner.

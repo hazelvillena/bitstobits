@@ -70,21 +70,22 @@ export interface Calibration {
   aspect: number; // camera width / height
   mmPerUnit: number;
   /**
-   * Pinch thresholds, relative to palm width: start below `pinchStart`,
-   * release above `pinchRelease`. `pinchOpen` is the open hand's value.
+   * Thumb to index gap with the hand open and pinched, for both signals:
+   * 3D (world landmarks, over palm width) and 2D (on screen, over palm size).
+   * See pinch.ts. Calibrated, then refined by every real pinch.
    */
-  pinchStart: number;
-  pinchRelease: number;
-  pinchOpen: number;
-  /** Minimum index bend (radians) for a pinch; pointing stays below it. */
+  open3: number;
+  closed3: number;
+  open2: number;
+  closed2: number;
+  /** Index bend (radians) of a pinch; a pointing finger stays well below. */
   bendMin: number;
 }
 
-// Pinch defaults, relative to palm width (about 8 cm): start near 2.4 cm, release near 3.8 cm,
-// in line with Meta's start and stop thresholds; refined per hand in calibration.
+// Defaults for an average hand; calibration and real pinches refine them.
 export const DEFAULT_CAL: Calibration = {
   span: 0.2, pinchOn: 0.32, aspect: 4 / 3, mmPerUnit: 420,
-  pinchStart: 0.3, pinchRelease: 0.48, pinchOpen: 1.1, bendMin: 0.5,
+  open3: 1.1, closed3: 0.15, open2: 1.0, closed2: 0.12, bendMin: 0.5,
 };
 
 const P = (lm: Float32Array, i: number, aspect: number) => [lm[i * 3] * aspect, lm[i * 3 + 1], lm[i * 3 + 2] * aspect];

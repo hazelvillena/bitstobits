@@ -2,6 +2,7 @@ import { Vector3 } from 'three';
 import type { Atelier } from '../render/atelier';
 import { isStroke, TOOLS, type Sculptor, type ToolKind } from '../sculpt/sculptor';
 import type { HandFrame } from './handModel';
+import { PinchDetector } from './pinch';
 import type { HandTracker } from './handTracker';
 import type { PaneMapping } from '../ui/handOverlay';
 
@@ -15,6 +16,10 @@ export interface HandActivity {
   onForm: boolean;
   /** Length of the stroke in progress (object units), 0 if none. */
   amount: number;
+  /** Close but not registering: suggest closing fully. */
+  hint: boolean;
+  /** Live numbers for the diagnostic view, or null. */
+  debug: string[] | null;
 }
 
 interface Grab {
@@ -44,7 +49,6 @@ export class HandInput {
   tool: () => ToolKind = () => 'extrude';
   activity = new Map<HandFrame, HandActivity>();
 
-  private pinching = new Map<boolean, { on: boolean; t: number }>();
   private grabs = new Map<boolean, Grab>();
   private aim = new Map<boolean, { x: number; y: number }>();
 
@@ -59,30 +63,17 @@ export class HandInput {
     return { x: this.map.x(h.lm[i * 3]), y: this.map.y(h.lm[i * 3 + 1]) };
   }
 
-  /**
-   * Pinch, measured in 3D relative to palm width. It registers as the
-   * fingertips close (after about one camera frame), releases past a wider
-   * distance (hysteresis), using this hand's calibration. The index-curl
-   * check is lenient: it only rules out a straight pointing finger, and a
-   * clearly closed pinch counts regardless.
-   */
+  private detectors = new Map<boolean, PinchDetector>();
+  /** Show live pinch numbers beside each hand (key D). */
+  debug = false;
+
   private pinchState(h: HandFrame, dt: number) {
-    const { pinchStart, pinchRelease, pinchOpen, bendMin } = this.tracker.cal;
-    const st = this.pinching.get(h.right) ?? { on: false, t: 0 };
-    const was = st.on;
-    const d = h.pinchRel;
-    if (st.on) {
-      if (d > pinchRelease) st.on = false;
-    } else {
-      const near = d < pinchStart * 1.15;
-      const clearlyClosed = d < pinchStart * 0.75;
-      const notPointing = h.indexBend > bendMin * 0.6;
-      st.t = near && (notPointing || clearlyClosed) ? st.t + dt : 0;
-      if (st.t >= 0.035) st.on = true;
+    let d = this.detectors.get(h.right);
+    if (!d) {
+      d = new PinchDetector(this.tracker.cal, () => this.tracker.saveCalibration());
+      this.detectors.set(h.right, d);
     }
-    this.pinching.set(h.right, st);
-    const amount = Math.min(1, Math.max(0, (pinchOpen - d) / (pinchOpen - pinchStart)));
-    return { now: st.on, started: st.on && !was, amount };
+    return d.update(h, dt);
   }
 
   /** Per frame. Returns surface markers for the shader. */
@@ -103,13 +94,13 @@ export class HandInput {
       // Aim with the index tip while the hand is open. As the fingers start
       // to close, the tip moves toward the thumb, so the aim locks early and
       // the grab lands where you were pointing.
-      if (!pinch.now && pinch.amount < 0.5) this.aim.set(key, tip);
+      if (!pinch.on && pinch.amount < 0.5) this.aim.set(key, tip);
       const aim = this.aim.get(key) ?? tip;
 
       let grab = this.grabs.get(key);
       // While pinched and not yet holding anything, keep trying to grab: a
       // pinch that starts just off the form still catches it.
-      if (pinch.now && !grab) {
+      if (pinch.on && !grab) {
         const hit = this.atelier.castSurface(aim.x, aim.y);
         const face = isStroke(selected) && this.sculptor.faceNear(aim.x, aim.y);
         if (selected === 'turn' || hit || face) {
@@ -128,7 +119,7 @@ export class HandInput {
           }
         }
       }
-      if (!pinch.now && grab) {
+      if (!pinch.on && grab) {
         this.end(key, grab);
         grab = undefined;
       }
@@ -182,6 +173,15 @@ export class HandInput {
         pinch: pinch.amount,
         onForm,
         amount: grab && isStroke(grab.tool) ? this.sculptor.strokeAmount(String(key)) : 0,
+        hint: pinch.hint,
+        debug: this.debug
+          ? [
+              `3D ${h.pinchRel.toFixed(2)} → ${pinch.c3.toFixed(2)}`,
+              `2D ${h.pinchRatio.toFixed(2)} → ${pinch.c2.toFixed(2)}`,
+              `curl ${h.indexBend.toFixed(2)}${pinch.pointing ? ' pointing' : ''}`,
+              `pinch ${pinch.on ? 'on' : 'off'} at ${pinch.amount.toFixed(2)}`,
+            ]
+          : null,
       });
     }
 
@@ -193,6 +193,5 @@ export class HandInput {
   private end(key: boolean, grab: Grab) {
     if (isStroke(grab.tool)) this.sculptor.endStroke(String(key));
     this.grabs.delete(key);
-    this.pinching.delete(key);
   }
 }

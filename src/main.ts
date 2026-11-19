@@ -239,6 +239,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === ']') sculptor.setBrush(sculptor.brush / 0.85);
   if ((e.key === 'n' || e.key === 'N') && mode === 'sculpt') startOver();
   if ((e.key === 'c' || e.key === 'C') && input === 'hands' && mode === 'sculpt') useHands(true);
+  if (e.key === 'd' || e.key === 'D') hands.debug = !hands.debug;
   if (e.key === 'h' || e.key === 'H') {
     if (input === 'hands') usePointer();
     else useHands();
