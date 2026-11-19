@@ -56,10 +56,17 @@
   --s-7: 48px;
   --margin: clamp(18px, 2.2vw, 32px);
 
-  /* Motion */
+  /* Motion: three durations, two curves. Everything animates with these. */
   --ease-out: cubic-bezier(0.2, 0.7, 0.1, 1);
   --ease-soft: cubic-bezier(0.45, 0, 0.2, 1);
-  --t-fast: 180ms;
-  --t-med: 420ms;
-  --t-slow: 900ms;
+  --ease-spring: cubic-bezier(0.25, 1.25, 0.4, 1); /* a hint of overshoot for popovers */
+  --t-fast: 160ms;
+  --t-med: 280ms;
+  --t-slow: 700ms;
+
+  /* Surfaces */
+  --radius-s: 8px;
+  --radius-m: 14px;
+  --pop-bg: rgba(248, 246, 242, 0.94);
+  --pop-shadow: 0 0 0 1px rgba(27, 33, 39, 0.06), 0 18px 40px -18px rgba(27, 33, 39, 0.35), 0 2px 6px -2px rgba(27, 33, 39, 0.08);
 }

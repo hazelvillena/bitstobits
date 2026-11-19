@@ -9,9 +9,9 @@ Status: working prototype. See [DECISIONS.md](DECISIONS.md) for what changed and
 
 1. **Start**: camera or mouse.
 2. **Calibrate** (camera): hold up an open hand for a moment. It appears as a measured diagram of 21 joints with live dimension lines.
-3. **Sculpt**: the current tool's name follows your wrist, so you always know what your hand is doing. The form answers to presence. Rings appear where a fingertip approaches; touched areas glow and cool.
+3. **Sculpt**: you start from a smooth rhombicuboctahedron (squares and triangles, softly rounded edges). the current tool's name follows your wrist, so you always know what your hand is doing. The form answers to presence. Rings appear where a fingertip approaches; touched areas glow and cool.
 4. **Keep**: press Enter or "Keep this form". The form dissolves toward the collection.
-5. **Collection**: forms arrange by kinship. Close relatives grow thin ligaments between their nearest surfaces. Hover a form for a small card beside it with its traits, its relatives and the shared trait behind each attachment.
+5. **Collection**: forms arrange by kinship. Close relatives grow thin ligaments between their nearest surfaces. Hover a form for a small card beside it: a radar chart overlaying its traits on its closest relative's, and how alike they are.
 
 ## Tools and gestures
 
@@ -19,10 +19,11 @@ Pick a tool with keys 1 to 4 or the toolbar at the bottom of the sculpt pane. Th
 
 | Key | Tool | While pinched (or mouse held) |
 |---|---|---|
-| 1 | Extrude | Drag along the surface's outward direction to draw out a clean, rounded taper; the other way presses in a rounded pocket. Drag sideways to curve it. Moving back undoes, so you can find the right length. |
-| 2 | Pierce | Hold to bore slowly; move to carve a groove |
-| 3 | Smooth | Move across the surface |
-| 4 | Rotate | Drag anywhere (mouse: right drag). The form follows your hand exactly and glides briefly on release. It never turns on its own. |
+| 1 | Extrude | Pull from a face: a clean, rounded taper grows straight out of it, and the form turns so that face points along your pull. It stays turned when you let go. |
+| 2 | Spike | Same gesture, a sharp thin needle. |
+| 3 | Pierce | Hold to bore slowly; move to carve a groove |
+| 4 | Smooth | Move across the surface |
+| 5 | Rotate | Drag anywhere (mouse: right drag). The form never turns on its own. |
 | Enter | Keep | |
 
 Both hands can extrude at the same time. `[` and `]` (or the size control in the toolbar) change the brush size; the surface shows its exact outline. `M` cycles the material. Every tool eases in over a third of a second and is rate-limited, so changes are small and deliberate.
@@ -35,7 +36,7 @@ Other keys: `N` start over, `C` recalibrate. Drag the divider to resize the pane
 
 **Particle skin.** 56k points with no CPU state. Each frame the vertex shader projects a slowly rotating seed onto the surface, so particles slide over the form and scatter from fingertips.
 
-**Materials.** Pearl (thin-film iridescence), Obsidian (black glass), Graphic (bold colour field) and Lines (the contour drawing). All four read the same data. Kept forms remember their material.
+**Materials.** A dropdown of presets: Lime (default), Iridescent chrome, Opal, Mercury, Ultraviolet, Aqua chrome, Pearl, Obsidian and Lines. Each preset is a five-colour palette plus metal, gloss and iridescence; one shared mapping turns any palette into a finish (see DESIGN.md). Kept forms remember their material.
 
 **Colour as data.**
 - Contour line colour follows curvature: rose on flat areas, magenta in hollows, ultramarine on ridges.

@@ -2,6 +2,24 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-18 (materials system, turning extrude, polyhedron)
+
+**Clicks on the UI were being swallowed.** Mouse sculpting captured the pointer on the whole sculpt pane, so real clicks on the material switch and toolbar never reached them. Sculpting now listens on the canvas only.
+
+**Materials are palettes.** Replaced four hand-written shading branches with one model fed by data: a five-colour palette plus metal, gloss and iridescence. Nine presets in a dropdown; Lime is the default. Older saves map `graphic` to Lime.
+
+**Extrude turns the form toward the pull.** The extrusion grows straight out of the grabbed face; while pulling, the form rotates (eased, about half a second) so that face points along the pull, and stays there. With two hands extruding, the form holds still. Extrusions stop before the edge of the sculpting volume, so they are never sliced flat or torn.
+
+**Spike is its own tool** (key 2), a near-straight cone to a fine point. Extrude stays rounded.
+
+**Starting form: a smooth rhombicuboctahedron.** Built as the soft maximum of its 26 face planes, so faces stay flat and edges softly rounded.
+
+**Bridges stay attached.** Anchors are eased in each form's own space and carried by it, instead of eased in world space where they lagged behind. Growth thickens the whole bridge from a hairline instead of cutting out its middle. The on-canvas connection labels are gone; the hover card explains links.
+
+**Hover card is a radar.** One chart overlays the form's traits on its closest relative's, so the overlap reads at a glance, with generous padding.
+
+**Design system pass.** Motion tokens (three durations, three curves), a shared popover surface, a sliding tool pill, an animated numeric brush size, anti-aliased silhouettes and a resolution that recovers when frames are fast.
+
 ## 2026-11-18 (rounded default, hover card)
 
 **Rounded extrusions by default.** The needle was too sharp as the everyday behaviour. The default profile (`ROUNDED`) tapers gently to a soft round tip, and pressing in makes a rounded pocket. The sharp `SPIKE` profile is kept in `sculptor.ts`. The tool is called Extrude again.

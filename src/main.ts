@@ -11,10 +11,11 @@ import { HandInput } from './input/handInput';
 import { Calibration } from './input/calibration';
 import { Field } from './field/field';
 import { createSpecimen, loadSpecimens, saveSpecimens, type Specimen } from './specimen/specimen';
-import { TRAITS } from './specimen/signature';
-import { traitHex, traitLabel } from './ui/tokens';
+import { traitLabel } from './ui/tokens';
+import { radarSVG } from './ui/radar';
 import { initDivider } from './ui/divider';
-import { MATERIALS, type MaterialKind } from './render/materials';
+import { DEFAULT_MATERIAL, MATERIALS, preset, swatch } from './render/materials';
+import { Dropdown } from './ui/dropdown';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -27,7 +28,8 @@ const atelierEl = $('atelier');
 const atelier = new Atelier($<HTMLCanvasElement>('atelier-canvas'));
 const sculptor = new Sculptor(atelier);
 const chrome = new Chrome();
-const pointer = new PointerInput(atelierEl, atelier, sculptor);
+// Listen on the canvas only, so pointer capture never swallows clicks on the UI above it.
+const pointer = new PointerInput($<HTMLCanvasElement>('atelier-canvas'), atelier, sculptor);
 const overlay = new HandOverlay($<HTMLCanvasElement>('hand-canvas'));
 const tracker = new HandTracker($<HTMLVideoElement>('camera'));
 const hands = new HandInput(tracker, atelier, sculptor, overlay.map);
@@ -39,29 +41,27 @@ let mode: 'intro' | 'calibrate' | 'sculpt' = 'intro';
 let input: 'hands' | 'pointer' = 'pointer';
 let accepting = false;
 
-fillLump(atelier.volume, (Date.now() % 100000) + 1);
+fillLump(atelier.volume);
 
 // ───── Material ─────
-const matNav = $('materials');
-function setMaterial(kind: MaterialKind) {
-  atelier.setMaterial(kind);
-  for (const b of matNav.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.kind === kind));
+const matPicker = new Dropdown(
+  $('materials'),
+  MATERIALS.map((m) => ({ value: m.key, label: m.name, swatch: swatch(m.key) })),
+  'Material',
+);
+function setMaterial(key: string) {
+  atelier.setMaterial(key);
+  matPicker.set(atelier.material);
   try {
-    localStorage.setItem('b2b.material', kind);
+    localStorage.setItem('b2b.material', atelier.material);
   } catch { /* ignore */ }
 }
-for (const m of MATERIALS) {
-  const b = document.createElement('button');
-  b.textContent = m.name;
-  b.dataset.kind = m.kind;
-  b.addEventListener('click', () => setMaterial(m.kind));
-  matNav.appendChild(b);
-}
-let savedMaterial: MaterialKind = 'pearl';
+matPicker.onChange = setMaterial;
+let savedMaterial = DEFAULT_MATERIAL;
 try {
-  savedMaterial = (localStorage.getItem('b2b.material') as MaterialKind) || 'pearl';
+  savedMaterial = localStorage.getItem('b2b.material') ?? DEFAULT_MATERIAL;
 } catch { /* ignore */ }
-setMaterial(MATERIALS.some((m) => m.kind === savedMaterial) ? savedMaterial : 'pearl');
+setMaterial(preset(savedMaterial).key);
 
 // ───── Intro ─────
 function begin(kind: 'hands' | 'pointer') {
@@ -109,13 +109,13 @@ pointer.onToolChange = (t) => chrome.setActive(t);
 chrome.onToolClick((t) => pointer.setTool(t));
 chrome.onBrush = (dir) => sculptor.setBrush(dir > 0 ? sculptor.brush / 0.85 : sculptor.brush * 0.85);
 
-const KEYS: Record<string, ToolKind> = { '1': 'extrude', '2': 'drill', '3': 'smooth', '4': 'turn' };
+const KEYS: Record<string, ToolKind> = { '1': 'extrude', '2': 'spike', '3': 'drill', '4': 'smooth', '5': 'turn' };
 window.addEventListener('keydown', (e) => {
   if (KEYS[e.key] && mode === 'sculpt') pointer.setTool(KEYS[e.key]);
   if (e.key === 'Enter' && mode === 'sculpt') accept();
   if (e.key === 'm' || e.key === 'M') {
-    const i = MATERIALS.findIndex((m) => m.kind === atelier.material);
-    setMaterial(MATERIALS[(i + 1) % MATERIALS.length].kind);
+    const i = MATERIALS.findIndex((m) => m.key === atelier.material);
+    setMaterial(MATERIALS[(i + 1) % MATERIALS.length].key);
   }
   if (e.key === '[') sculptor.setBrush(sculptor.brush * 0.85);
   if (e.key === ']') sculptor.setBrush(sculptor.brush / 0.85);
@@ -129,7 +129,7 @@ window.addEventListener('keydown', (e) => {
 
 // ───── Keep / start over ─────
 function startOver() {
-  fillLump(atelier.volume, (Date.now() % 100000) + 1);
+  fillLump(atelier.volume);
   atelier.growIn();
 }
 $('btn-reset').addEventListener('click', startOver);
@@ -161,7 +161,7 @@ $('btn-seed').addEventListener('click', () => {
   let left = 6;
   const one = () => {
     sculptRandom(tmp, Math.floor(Math.random() * 1e6));
-    const spec = createSpecimen(tmp, specimens.length + 1, MATERIALS[Math.floor(Math.random() * 3)].kind);
+    const spec = createSpecimen(tmp, specimens.length + 1, MATERIALS[Math.floor(Math.random() * (MATERIALS.length - 1))].key);
     specimens.push(spec);
     field.add(spec, true);
     updateCount();
@@ -185,16 +185,14 @@ field.onHover = (spec, kin) => {
     inspector.hidden = true;
     return;
   }
-  const bars = TRAITS.map((t) => {
-    const v = spec.sig[t];
-    const shown = t === 'genus' ? String(spec.raw.holes) : v.toFixed(2).replace(/^0/, '');
-    return `<div class="bar"><span>${traitLabel[t]}</span><span class="track"><span style="width:${(v * 100).toFixed(1)}%;background:${traitHex[t]}"></span></span><span class="v">${shown}</span></div>`;
-  }).join('');
-  const kinHtml = kin.length
-    ? kin.map((k) => `<div><span><b>${k.spec.name}</b> by ${traitLabel[k.trait].toLowerCase()}</span><span class="num">${Math.round(k.k * 100)}%</span></div>`).join('')
-    : `<div><span>No relatives yet</span></div>`;
+  // One chart: this form over its closest relative, so the overlap reads.
+  const top = kin[0];
+  const legend = top
+    ? `<div class="legend"><span><i class="self"></i>${spec.name}</span><span><i class="kin"></i>${top.spec.name}</span></div>
+       <div class="match"><span>Alike by ${traitLabel[top.trait].toLowerCase()}</span><b class="num">${Math.round(top.k * 100)}%</b></div>`
+    : `<div class="match"><span>No relatives yet</span></div>`;
   card.placed = false;
-  inspector.innerHTML = `<div><h3>${spec.name}</h3></div><div class="sub">Form ${spec.no}</div><div class="bars">${bars}</div><div class="kin">${kinHtml}</div>`;
+  inspector.innerHTML = `<header><h3>${spec.name}</h3><span class="sub num">Form ${spec.no}</span></header>${radarSVG(spec.sig, top?.spec.sig)}${legend}`;
   inspector.hidden = false;
 };
 
@@ -238,6 +236,7 @@ ro.observe($('field'));
 
 let last = performance.now();
 let slow = 0;
+let calm = 0;
 function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
@@ -262,10 +261,15 @@ function frame(now: number) {
   placeInspector(dt);
 
   // Adaptive resolution: protect the frame rate first.
+  // Adaptive resolution: step down when frames run long, recover when calm.
   slow = slow * 0.95 + (dt > 1 / 45 ? 1 : 0) * 0.05;
+  calm = dt < 1 / 70 ? calm + dt : 0;
   if (slow > 0.5) {
-    atelier.setPixelRatio(Math.max(0.75, atelier.currentPixelRatio - 0.25));
+    atelier.setPixelRatio(Math.max(1, atelier.currentPixelRatio - 0.25));
     slow = 0;
+  } else if (calm > 2 && atelier.currentPixelRatio < Math.min(window.devicePixelRatio, 2)) {
+    atelier.setPixelRatio(atelier.currentPixelRatio + 0.25);
+    calm = 0;
   }
   requestAnimationFrame(frame);
 }

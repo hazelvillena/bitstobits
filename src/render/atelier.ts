@@ -13,7 +13,7 @@ import {
 import { Volume } from '../sculpt/volume';
 import { createClayMaterial, MAX_TIPS } from './clayMaterial';
 import { createParticleSkin } from './particleSkin';
-import { materialIndex, type MaterialKind } from './materials';
+import { applyMaterial, DEFAULT_MATERIAL, preset } from './materials';
 
 /** Plate I: the sculpting chamber. */
 export class Atelier {
@@ -33,7 +33,7 @@ export class Atelier {
   private grow = 1; // 0..1 new lump animation
   private canvas: HTMLCanvasElement;
   private pixelRatio = 1;
-  material: MaterialKind = 'pearl';
+  material = DEFAULT_MATERIAL;
   /** Brush radius in object units, mirrored to the shader outline. */
   brush = 0.12;
 
@@ -41,7 +41,7 @@ export class Atelier {
     this.canvas = canvas;
     this.renderer = new WebGLRenderer({ canvas, antialias: false, alpha: true, powerPreference: 'high-performance' });
     this.renderer.setClearColor(0x000000, 0);
-    this.pixelRatio = Math.min(window.devicePixelRatio, 1.75);
+    this.pixelRatio = Math.min(window.devicePixelRatio, 2);
 
     this.camera.position.set(0, 0.2, 4.4);
     this.camera.lookAt(0, 0, 0);
@@ -63,15 +63,14 @@ export class Atelier {
     this.resize();
   }
 
-  setMaterial(kind: MaterialKind) {
-    this.material = kind;
-    this.clay.uniforms.uMaterial.value = materialIndex(kind);
-    // The particle skin is part of the drawing language: full in Lines,
-    // a fine dust on Pearl, absent on the glossy Obsidian and Graphic.
-    const skin = { pearl: 0.22, obsidian: 0, graphic: 0, lines: 1 }[kind];
-    this.skin.material.uniforms.uSkin.value = skin;
-    this.skin.points.visible = skin > 0;
-    this.skin.material.uniforms.uSkinLight.value = { pearl: 0.55, obsidian: 0.85, graphic: 0, lines: 0 }[kind];
+  setMaterial(key: string) {
+    this.material = preset(key).key;
+    applyMaterial(this.clay.uniforms.uMat, this.material);
+    // The particle skin belongs to the line drawing; finishes stay clean.
+    const lines = !!preset(key).lines;
+    this.skin.material.uniforms.uSkin.value = lines ? 1 : 0;
+    this.skin.material.uniforms.uSkinLight.value = 0;
+    this.skin.points.visible = lines;
   }
 
   resize() {
@@ -214,6 +213,9 @@ export class Atelier {
     u.uTime.value = this.time;
     u.uOpacity.value = (1 - this.dissolve) * g;
     u.uBrush.value = this.brush;
+    // One pixel's size in object units at distance 1 (object is uniformly scaled).
+    const fovRad = (this.camera.fov * Math.PI) / 180;
+    u.uPixel.value = (2 * Math.tan(fovRad / 2)) / (this.canvas.clientHeight * this.renderer.getPixelRatio()) / this.object.scale.x;
     const su = this.skin.material.uniforms;
     su.uTime.value = this.time;
     su.uDissolve.value = this.dissolve;

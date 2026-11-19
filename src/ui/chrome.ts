@@ -5,6 +5,7 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 // Minimal line glyphs for each tool.
 const GLYPHS: Record<ToolKind, string> = {
   extrude: '<path d="M3 13 H19"/><path d="M7.5 13 C8 7.5 9 4 11 3.6 C13 4 14 7.5 14.5 13"/>',
+  spike: '<path d="M3 13 H19"/><path d="M8 13 L11 1.5 L14 13"/>',
   drill: '<circle cx="11" cy="8" r="5.5"/><circle cx="11" cy="8" r="1.6"/>',
   smooth: '<path d="M3 10 C6 6 8 14 11 10 S16 6 19 10"/>',
   turn: '<path d="M5 9 A6 6 0 1 0 11 3"/><path d="M11 1 L13 3 L11 5"/>',
@@ -13,6 +14,12 @@ const GLYPHS: Record<ToolKind, string> = {
 export class Chrome {
   private toolEls = new Map<ToolKind, HTMLButtonElement>();
   private sizeEl: HTMLElement;
+  private sizeNum: HTMLElement;
+  private indicator: HTMLElement;
+  private active: ToolKind | null = null;
+  private shownSize = -1;
+  private sizeTarget = 0;
+  private sizeRaf = 0;
   onBrush: (dir: -1 | 1) => void = () => {};
 
   constructor() {
@@ -21,6 +28,11 @@ export class Chrome {
     group.className = 'tool-group';
     group.setAttribute('role', 'radiogroup');
     group.setAttribute('aria-label', 'Tool');
+    // One pill that slides to the selected tool.
+    this.indicator = document.createElement('span');
+    this.indicator.className = 'tool-indicator';
+    this.indicator.setAttribute('aria-hidden', 'true');
+    group.appendChild(this.indicator);
     for (const t of TOOLS) {
       const b = document.createElement('button');
       b.className = 'tool';
@@ -38,12 +50,15 @@ export class Chrome {
     // Brush size: minus, a dot that scales with the size, plus.
     const size = document.createElement('div');
     size.className = 'size-group';
-    size.innerHTML = `<button type="button" aria-label="Smaller brush">−</button><span class="size-dot" aria-hidden="true"><i></i></span><button type="button" aria-label="Larger brush">+</button>`;
+    size.innerHTML = `<button type="button" aria-label="Smaller brush">−</button><span class="size-dot" aria-hidden="true"><i></i></span><span class="size-num num" aria-live="polite"></span><button type="button" aria-label="Larger brush">+</button>`;
     const [minus, plus] = size.querySelectorAll('button');
     minus.addEventListener('click', () => this.onBrush(-1));
     plus.addEventListener('click', () => this.onBrush(1));
     this.sizeEl = size.querySelector('.size-dot i')!;
+    this.sizeNum = size.querySelector('.size-num')!;
     bar.appendChild(size);
+    // Keep the pill on its tool when the toolbar reflows.
+    new ResizeObserver(() => this.placeIndicator(false)).observe(group);
   }
 
   onToolClick(fn: (t: ToolKind) => void) {
@@ -58,16 +73,60 @@ export class Chrome {
   }
 
   setActive(kind: ToolKind | null) {
+    const first = this.active === null;
+    this.active = kind;
     for (const [k, b] of this.toolEls) {
       b.classList.toggle('active', k === kind);
       b.setAttribute('aria-checked', String(k === kind));
     }
+    this.placeIndicator(!first);
   }
 
-  /** Brush radius 0.05 … 0.28 shown as a dot from 4 to 14 px. */
+  private placeIndicator(animate: boolean) {
+    const b = this.active ? this.toolEls.get(this.active) : null;
+    const ind = this.indicator;
+    if (!b) {
+      ind.style.opacity = '0';
+      return;
+    }
+    if (!animate) ind.style.transition = 'none';
+    ind.style.opacity = '1';
+    ind.style.width = `${b.offsetWidth}px`;
+    ind.style.transform = `translateX(${b.offsetLeft - 3}px)`;
+    if (!animate) {
+      void ind.offsetWidth; // apply without animating, then restore transitions
+      ind.style.transition = '';
+    }
+  }
+
+  /**
+   * Brush radius 0.05 … 0.28: a dot from 4 to 14 px, and a size from 5 to 28
+   * that counts to its new value.
+   */
   setBrush(r: number) {
     const px = 4 + ((r - 0.05) / 0.23) * 10;
     this.sizeEl.style.width = this.sizeEl.style.height = `${px.toFixed(1)}px`;
+    const target = Math.round(r * 100);
+    if (target === this.sizeTarget && this.shownSize >= 0) return;
+    this.sizeTarget = target;
+    if (this.shownSize < 0) {
+      this.shownSize = target;
+      this.sizeNum.textContent = String(target);
+      return;
+    }
+    cancelAnimationFrame(this.sizeRaf);
+    const from = this.shownSize, t0 = performance.now(), dur = 280;
+    const tick = (now: number) => {
+      const k = Math.min(1, (now - t0) / dur);
+      const e = 1 - Math.pow(1 - k, 3);
+      this.shownSize = from + (target - from) * e;
+      this.sizeNum.textContent = String(Math.round(this.shownSize));
+      if (k < 1) this.sizeRaf = requestAnimationFrame(tick);
+    };
+    this.sizeNum.classList.remove('bump');
+    void this.sizeNum.offsetWidth;
+    this.sizeNum.classList.add('bump');
+    this.sizeRaf = requestAnimationFrame(tick);
   }
 
   setSpecimenNumber(n: number) {

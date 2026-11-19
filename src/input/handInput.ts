@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import type { Atelier } from '../render/atelier';
-import { TOOLS, type Sculptor, type ToolKind } from '../sculpt/sculptor';
+import { ROUNDED, SPIKE, TOOLS, type Sculptor, type ToolKind } from '../sculpt/sculptor';
 import type { HandFrame } from './handModel';
 import type { HandTracker } from './handTracker';
 import type { PaneMapping } from '../ui/handOverlay';
@@ -101,7 +101,8 @@ export class HandInput {
             held: 0,
           };
           this.grabs.set(key, grab);
-          if (selected === 'extrude' && hit && !this.sculptor.beginExtrude(String(key), hit)) {
+          const shaping = selected === 'extrude' || selected === 'spike';
+          if (shaping && hit && !this.sculptor.beginExtrude(String(key), hit, selected === 'spike' ? SPIKE : ROUNDED)) {
             this.grabs.delete(key);
             grab = undefined;
           }
@@ -124,8 +125,8 @@ export class HandInput {
           if (Math.hypot(mx, my) < 1.2) mx = my = 0;
           if (mx || my) this.atelier.rotateBy(mx * 0.0028, my * 0.0028);
           engaged = true;
-        } else if (grab.tool === 'extrude') {
-          engaged = this.sculptor.dragExtrude(String(key), dx, dy);
+        } else if (grab.tool === 'extrude' || grab.tool === 'spike') {
+          engaged = this.sculptor.dragExtrude(String(key), dx, dy, dt);
           const hit = this.atelier.castSurface(grab.aimX, grab.aimY);
           if (hit) tips.push({ pos: hit.point, strength: 1 });
           onForm = true;
@@ -164,7 +165,7 @@ export class HandInput {
   }
 
   private end(key: boolean, grab: Grab) {
-    if (grab.tool === 'extrude') this.sculptor.endExtrude(String(key));
+    if (grab.tool === 'extrude' || grab.tool === 'spike') this.sculptor.endExtrude(String(key));
     this.grabs.delete(key);
     this.pinching.delete(key);
   }

@@ -1,11 +1,12 @@
 import { BackSide, GLSL3, ShaderMaterial, Vector3, Vector4 } from 'three';
 import type { Volume } from '../sculpt/volume';
-import { materialUniforms, surfaceGLSL, type MaterialKind } from './materials';
+import { palette } from '../ui/tokens';
+import { materialValue, surfaceGLSL } from './materials';
 
 export const MAX_TIPS = 10;
 
 /** Raymarched form: the distance field rendered with the shared materials. */
-export function createClayMaterial(vol: Volume, kind: MaterialKind) {
+export function createClayMaterial(vol: Volume, material: string) {
   const tips: Vector4[] = [];
   for (let i = 0; i < MAX_TIPS; i++) tips.push(new Vector4(0, 0, 0, 0));
 
@@ -23,8 +24,11 @@ export function createClayMaterial(vol: Volume, kind: MaterialKind) {
       uTips: { value: tips },
       uTipCount: { value: 0 },
       uBrush: { value: 0.12 },
+      uPixel: { value: 0.001 }, // view-space size of one pixel at distance 1
       uOpacity: { value: 1 },
-      ...materialUniforms(kind),
+      uMat: { value: materialValue(material) },
+      uInk: { value: palette.ink },
+      uSignal: { value: palette.signal },
     },
     vertexShader: /* glsl */ `
       out vec3 vLocal;
@@ -48,9 +52,12 @@ export function createClayMaterial(vol: Volume, kind: MaterialKind) {
       uniform vec4 uTips[${MAX_TIPS}];
       uniform int uTipCount;
       uniform float uBrush;
+      uniform float uPixel;
       uniform float uOpacity;
 
       ${surfaceGLSL}
+      uniform Mat uMat;
+      uniform vec3 uInk, uSignal;
 
       float map(vec3 p) { return texture(uSdf, p * 0.5 + 0.5).r; }
 
@@ -67,13 +74,22 @@ export function createClayMaterial(vol: Volume, kind: MaterialKind) {
         vec2 tb = box(ro, rd);
         float t = max(tb.x, 0.0);
         bool hit = false;
+        // Track the closest approach, for soft anti-aliased silhouettes.
+        float dMin = 1e9, tMin = t;
         for (int i = 0; i < 140; i++) {
           float d = map(ro + rd * t);
+          if (d < dMin) { dMin = d; tMin = t; }
           if (d < 0.0012) { hit = true; break; }
           t += max(d * 0.7, 0.002);
           if (t > tb.y) break;
         }
-        if (!hit) discard;
+        float coverage = 1.0;
+        if (!hit) {
+          float fp = uPixel * tMin * 1.2;
+          if (dMin > fp) discard;
+          coverage = 1.0 - dMin / fp;
+          t = tMin;
+        }
         vec3 p = ro + rd * t;
 
         // Normal + mean curvature from one 6-tap stencil.
@@ -83,7 +99,10 @@ export function createClayMaterial(vol: Volume, kind: MaterialKind) {
         float yp = map(p + vec3(0,e,0)), yn = map(p - vec3(0,e,0));
         float zp = map(p + vec3(0,0,e)), zn = map(p - vec3(0,0,e));
         vec3 n = normalize(vec3(xp - xn, yp - yn, zp - zn));
-        float lap = (xp + xn + yp + yn + zp + zn - 6.0 * c0) / (e * e);
+        // Curvature over a wider stencil: a tight one shows voxel steps as bands.
+        float e2 = uTexel * 3.5;
+        float lap = (map(p + vec3(e2,0,0)) + map(p - vec3(e2,0,0)) + map(p + vec3(0,e2,0))
+                   + map(p - vec3(0,e2,0)) + map(p + vec3(0,0,e2)) + map(p - vec3(0,0,e2)) - 6.0 * c0) / (e2 * e2);
         float curv = clamp(lap * 0.09, -1.5, 1.5);
 
         vec2 attr = texture(uAttr, p * 0.5 + 0.5).rg;
@@ -95,10 +114,12 @@ export function createClayMaterial(vol: Volume, kind: MaterialKind) {
         }
         ao = clamp(1.0 - ao * 0.75, 0.25, 1.0);
 
-        vec3 col = shadeSurface(n, -rd, p, curv, attr.r, attr.g, ao);
+        vec3 col = shade(uMat, n, -rd, p, curv, attr.r, attr.g, ao);
 
         // Brush: one crisp outline of exactly the area a tool will touch.
-        vec3 ringCol = uMaterial == 1 ? vec3(0.92, 0.94, 0.96) : uInk;
+        // Outline in ink, or light on dark finishes.
+        float lum = dot(uMat.pal[2], vec3(0.3, 0.59, 0.11));
+        vec3 ringCol = lum < 0.3 ? vec3(0.92, 0.94, 0.96) : uInk;
         for (int i = 0; i < ${MAX_TIPS}; i++) {
           if (i >= uTipCount) break;
           vec4 tip = uTips[i];
@@ -110,7 +131,7 @@ export function createClayMaterial(vol: Volume, kind: MaterialKind) {
           col = mix(col, uSignal, inside * smoothstep(0.8, 1.0, tip.w) * 0.18);
         }
 
-        fragColor = vec4(col, uOpacity);
+        fragColor = vec4(col, uOpacity * coverage);
         vec4 clip = projectionMatrix * viewMatrix * modelMatrix * vec4(p, 1.0);
         gl_FragDepth = clip.z / clip.w * 0.5 + 0.5;
       }

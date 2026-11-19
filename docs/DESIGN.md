@@ -31,24 +31,35 @@ Type scale: 10 / 11.5 / 13 / 15 / 30 px, display `clamp(44px, 5vw, 72px)` at wei
 ## Components
 
 - **Buttons**: pill shaped. Primary is solid ink; ghost is a hairline.
-- **Toolbar**: a translucent pill of tool buttons (glyph, name, key) at the bottom of the sculpt pane; the active tool is solid ink. Beside it, a brush size control: minus, a dot that grows with the size, plus. Hand gestures live in tooltips.
+- **Toolbar**: a translucent pill of tool buttons (glyph, name, key). A solid ink pill slides to the selected tool with a slight spring. Beside it, the brush size: minus, a dot that grows, a number that counts to its new value, plus. Hand gestures live in tooltips.
+- **Popover**: the one floating surface (`.popover`): warm translucent fill, blur, 14 px radius, a soft two-layer shadow. Used by the material dropdown and the hover card.
+- **Material dropdown**: a quiet pill trigger with the current swatch; the list opens with a short spring (scale and fade) and supports arrow keys and Escape.
 - **Hand overlay**: joints as small open circles, bones as hairlines, and dimension lines with millimetre lengths during calibration. Engaged fingertips fill with signal and pulse.
-- **Hover card**: a compact translucent card beside the hovered form (flips side near edges, follows the form) with the name, form number, trait bars and relatives with their kinship percentage.
+- **Hover card**: a popover beside the hovered form (flips side near edges, follows the form) with 20 px padding: the name and form number, one radar chart overlaying the form's traits (ink) on its closest relative's (lime), a two-item legend and how alike they are.
 - **Bridges**: a flared root of each form's own matter easing into one fine filament with a slow S-curve, and a fine trait-colour band at the middle. They grow from both sides and recede when another form is in focus. Shape constants live in `BRIDGE` (`src/field/bridge.ts`).
 
 ## Materials
 
-Four materials, one data model. Each reads curvature (hollow to ridge), compression (stretched to pressed) and heat (recent touch) in its own way.
+A material is data (`src/render/materials.ts`): a five-colour palette, dark to light, plus `metal`, `gloss` and `film` (iridescence). One shading model maps any palette the same way, so a new finish is only a new palette, and later a palette could come from a painting:
 
-| Material | Look | How data shows |
+- **Body:** the palette, at a position set by the form's own data. Hollows sit darker, ridges lighter, and pressed areas shift down.
+- **Reflections:** the palette wrapped around the room, looked up by reflection direction, so metallic finishes mirror their own colours. Three white softboxes are shared by every finish.
+- **Iridescence:** slides the reflection lookup with viewing angle and curvature.
+
+| Preset | Palette feel | Metal / gloss / film |
 |---|---|---|
-| Pearl | Iridescent thin film over a soft pale body, studio reflections | Hue shifts with angle; hollows run warm, ridges cool, pressed areas shift the film |
-| Obsidian | Black glass, sharp highlights | Pressed areas carry a deep violet; ridges catch a blue sheen |
-| Graphic | Bold smooth lime field, deep green through lime to pale chartreuse | Position on the ramp is curvature minus pressure |
-| Lines | The original contour drawing | Line colour is curvature, line density is compression |
+| Lime (default) | Deep green to pale chartreuse | Painted, soft, none |
+| Iridescent chrome | Indigo, periwinkle, cyan, pink | Mirror, sharp, strong |
+| Opal | Milky lilac, mint, peach | Satin, glossy, medium |
+| Mercury | Graphite to white | Full mirror, sharp, none |
+| Ultraviolet | Deep violet to orchid | Mirror, sharp, medium |
+| Aqua chrome | Teal to ice | Mirror, sharp, medium |
+| Pearl | Pastel lilac and rose | Satin, medium, strong |
+| Obsidian | Near-black to slate | Mirror, very sharp, none |
+| Lines | Ultramarine, magenta, rose | The contour drawing |
 
-The particle skin is part of each language: full in Lines, a fine pale dust on Pearl, absent on Obsidian and Graphic. The brush appears as one crisp outline on the surface.
+The particle skin appears only with Lines; finishes stay clean. Silhouettes are anti-aliased in the raymarcher.
 
 ## Motion
 
-Slow and physical. Ease-out curves, nothing snaps. Forms grow in over about 1 s, kept forms dissolve toward the collection, and ligaments draw themselves.
+Three durations (`--t-fast` 160 ms, `--t-med` 280 ms, `--t-slow` 700 ms) and three curves (`--ease-out`, `--ease-soft`, and `--ease-spring` with a hint of overshoot for popovers and the tool pill). Slow and physical; nothing snaps. Forms grow in over about 1 s, kept forms dissolve toward the collection, and ligaments draw themselves.

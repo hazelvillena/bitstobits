@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import { Volume, smin } from './volume';
+import { Volume } from './volume';
 
 export function rng(seed: number) {
   let s = seed >>> 0 || 1;
@@ -11,33 +11,51 @@ export function rng(seed: number) {
   };
 }
 
+// Face normals of a rhombicuboctahedron: 6 cube faces, 12 edge faces, 8 corner triangles.
+const S2 = Math.SQRT1_2, S3 = 1 / Math.sqrt(3);
+const RHOMBI: { n: [number, number, number]; d: number }[] = [];
+for (const a of [0, 1, 2]) for (const s of [-1, 1]) {
+  const n: [number, number, number] = [0, 0, 0];
+  n[a] = s;
+  RHOMBI.push({ n, d: 1 });
+}
+for (const [a, b] of [[0, 1], [1, 2], [0, 2]]) for (const sa of [-1, 1]) for (const sb of [-1, 1]) {
+  const n: [number, number, number] = [0, 0, 0];
+  n[a] = sa * S2;
+  n[b] = sb * S2;
+  RHOMBI.push({ n, d: 1 });
+}
+// Triangles sit a little further out: (3 + √2) / √3 against 1 + √2 for the squares.
+const TRI = (3 + Math.SQRT2) / Math.sqrt(3) / (1 + Math.SQRT2);
+for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) RHOMBI.push({ n: [x * S3, y * S3, z * S3], d: TRI });
+
 /**
- * The starting lump: a few attractor points amalgamated into one field
- * (attractor points → field → amalgamation, as in the reference plate).
+ * Smooth rhombicuboctahedron: the intersection of its face planes, with a
+ * soft maximum so every edge and corner is gently rounded.
  */
-export function fillLump(vol: Volume, seed: number) {
-  const r = rng(seed);
-  const pts: { c: [number, number, number]; r: number }[] = [];
-  const count = 4 + Math.floor(r() * 3);
-  for (let i = 0; i < count; i++) {
-    const a = r() * Math.PI * 2, b = (r() - 0.5) * 1.6;
-    const d = i === 0 ? 0 : 0.18 + r() * 0.16;
-    pts.push({
-      c: [Math.cos(a) * Math.cos(b) * d, Math.sin(b) * d * 0.9, Math.sin(a) * Math.cos(b) * d],
-      r: i === 0 ? 0.36 : 0.2 + r() * 0.14,
-    });
+export function sdRhombi(x: number, y: number, z: number, size: number, soft: number) {
+  // Log-sum-exp soft maximum of the plane distances.
+  let m = -Infinity;
+  const ds: number[] = [];
+  for (const f of RHOMBI) {
+    const d = x * f.n[0] + y * f.n[1] + z * f.n[2] - f.d * size;
+    ds.push(d);
+    if (d > m) m = d;
   }
-  const f1 = 2.1 + r(), f2 = 3.3 + r();
-  vol.fill((x, y, z) => {
-    let d = 10;
-    for (const p of pts) {
-      const dx = x - p.c[0], dy = y - p.c[1], dz = z - p.c[2];
-      d = smin(d, Math.sqrt(dx * dx + dy * dy + dz * dz) - p.r, 0.22);
-    }
-    // Low-frequency organic undulation.
-    d += 0.018 * Math.sin(x * f1 * 3 + y * 2.1) * Math.sin(z * f2 * 2 + x * 1.3);
-    return d;
-  });
+  let sum = 0;
+  for (const d of ds) sum += Math.exp((d - m) / soft);
+  return m + soft * Math.log(sum) - soft * 0.9;
+}
+
+/**
+ * The starting form: a smooth rhombicuboctahedron (squares and triangles,
+ * softly rounded). `seed` varies proportions slightly for generated samples.
+ */
+export function fillLump(vol: Volume, seed = 0) {
+  const r = rng(seed || 1);
+  const v = seed ? 0.14 : 0;
+  const sx = 1 + (r() - 0.5) * v * 2, sy = 1 + (r() - 0.5) * v * 2, sz = 1 + (r() - 0.5) * v * 2;
+  vol.fill((x, y, z) => sdRhombi(x / sx, y / sy, z / sz, 0.42, 0.009) * Math.min(sx, sy, sz));
 }
 
 /** Procedurally "sculpt" a specimen, for seeding the field without hands. */

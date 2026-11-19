@@ -1,9 +1,9 @@
 import { DoubleSide, GLSL3, ShaderMaterial } from 'three';
 import { palette } from '../ui/tokens';
-import { materialUniforms, surfaceGLSL, type MaterialKind } from '../render/materials';
+import { materialValue, surfaceGLSL } from '../render/materials';
 
 /** Kept forms wear the material they were made in. */
-export function createSpecimenMaterial(kind: MaterialKind) {
+export function createSpecimenMaterial(material: string | undefined) {
   return new ShaderMaterial({
     glslVersion: GLSL3,
     transparent: true,
@@ -13,7 +13,7 @@ export function createSpecimenMaterial(kind: MaterialKind) {
       uOpacity: { value: 0 },
       uFocus: { value: 1 }, // 1 normal, <1 recedes when another form is in focus
       uPlate: { value: palette.field },
-      ...materialUniforms(kind),
+      uMat: { value: materialValue(material ?? '') },
     },
     vertexShader: /* glsl */ `
       in float aCurv;
@@ -44,11 +44,12 @@ export function createSpecimenMaterial(kind: MaterialKind) {
       in float vComp;
       out vec4 fragColor;
       ${surfaceGLSL}
+      uniform Mat uMat;
       void main() {
         vec3 n = normalize(vN);
         vec3 V = normalize(vView);
         // Line density was tuned for the larger sculpt view.
-        vec3 col = shadeSurface(n, V, vLocal * 0.4, vCurv, vComp, 0.0, 1.0);
+        vec3 col = shade(uMat, n, V, vLocal * 0.4, vCurv, vComp, 0.0, 1.0);
         col = mix(uPlate, col, mix(0.3, 1.0, uFocus));
         fragColor = vec4(col, uOpacity);
       }

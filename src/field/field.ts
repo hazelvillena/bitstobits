@@ -11,7 +11,7 @@ import type { Specimen } from '../specimen/specimen';
 import { kinship, sharedTraits } from '../specimen/signature';
 import { createSpecimenMaterial } from './specimenMaterial';
 import { Bridge, BRIDGE } from './bridge';
-import { traitHex, traitLabel, type TraitKey } from '../ui/tokens';
+import { traitHex, type TraitKey } from '../ui/tokens';
 
 const THRESHOLD = 0.62;
 const MAX_KIN = 2;
@@ -37,11 +37,13 @@ interface Link {
   traits: { trait: TraitKey; score: number }[];
   born: number;
   bridge: Bridge;
-  /** Smoothed anchors, so bridges glide instead of snapping between vertices. */
+  /**
+   * Anchors in each form's own (mesh) space: eased so they glide over the
+   * surface, and carried by the form so the bridge never detaches from it.
+   */
   anchor: { pa: Vector3; na: Vector3; pb: Vector3; nb: Vector3 } | null;
   phase: number;
-  label: HTMLDivElement;
-}
+  }
 
 /** The collection: forms arrange by kinship and attach where they agree. */
 export class Field {
@@ -163,16 +165,8 @@ export class Field {
       const traits = sharedTraits(w.a.spec.sig, w.b.spec.sig, pop);
       const bridge = new Bridge(w.a.spec.material ?? 'pearl', w.b.spec.material ?? 'pearl', traitHex[traits[0]?.trait ?? 'volume']);
       this.scene.add(bridge.mesh);
-      const label = document.createElement('div');
-      label.className = 'tag link';
-      label.style.opacity = '0';
-      const t0 = traits[0];
-      const fmt = (t: TraitKey, v: number) => (t === 'genus' ? String(Math.round(v * 4)) : v.toFixed(2).replace(/^0/, ''));
-      label.innerHTML = t0
-        ? `<i style="background:${traitHex[t0.trait]}"></i>${traitLabel[t0.trait]} ${fmt(t0.trait, w.a.spec.sig[t0.trait])} and ${fmt(t0.trait, w.b.spec.sig[t0.trait])}`
-        : '';
-      this.labels.appendChild(label);
-      next.push({ a: w.a, b: w.b, k: w.k, traits, born: this.time, bridge, label, anchor: null, phase: Math.random() * Math.PI * 2 });
+      // The reason for a link is shown in the hover card, not on the canvas.
+      next.push({ a: w.a, b: w.b, k: w.k, traits, born: this.time, bridge, anchor: null, phase: Math.random() * Math.PI * 2 });
     }
     for (const l of old.values()) this.disposeLink(l);
     this.links = next;
@@ -181,14 +175,13 @@ export class Field {
   private disposeLink(l: Link) {
     this.scene.remove(l.bridge.mesh);
     l.bridge.dispose();
-    l.label.remove();
   }
 
   private key(a: Item, b: Item) {
     return a.spec.id < b.spec.id ? `${a.spec.id}|${b.spec.id}` : `${b.spec.id}|${a.spec.id}`;
   }
 
-  /** Surface point of `it` furthest along world direction `dir`, plus its normal. */
+  /** Surface point of `it` furthest along world direction `dir`, and its normal, in the form's mesh space. */
   private support(it: Item, dir: Vector3, out: Vector3, nOut: Vector3) {
     const inv = it.mesh.quaternion.clone().invert();
     const ld = dir.clone().applyQuaternion(inv);
@@ -211,8 +204,7 @@ export class Field {
       w += wi;
     }
     out.divideScalar(w || 1);
-    it.mesh.localToWorld(out);
-    nOut.applyQuaternion(it.mesh.quaternion).normalize();
+    nOut.normalize();
   }
 
   update(dt: number) {
@@ -268,15 +260,21 @@ export class Field {
     const ease = 1 - Math.exp(-dt * 3);
     for (const l of this.links) {
       const dir = l.b.pos.clone().sub(l.a.pos).normalize();
+      // Find where each form faces the other, in its own space, and ease there.
       this.support(l.a, dir, pa, na);
       this.support(l.b, dir.clone().negate(), pb, nb);
-      // Lean the normals toward each other so the bridge reaches, not splays.
-      na.lerp(dir, 0.5).normalize();
-      nb.lerp(dir.clone().negate(), 0.5).normalize();
       if (!l.anchor) l.anchor = { pa: pa.clone(), na: na.clone(), pb: pb.clone(), nb: nb.clone() };
       const A = l.anchor;
       A.pa.lerp(pa, ease); A.pb.lerp(pb, ease);
       A.na.lerp(na, ease).normalize(); A.nb.lerp(nb, ease).normalize();
+      // Carry the anchors with their forms into world space.
+      pa.copy(A.pa); l.a.mesh.localToWorld(pa);
+      pb.copy(A.pb); l.b.mesh.localToWorld(pb);
+      na.copy(A.na).applyQuaternion(l.a.mesh.quaternion);
+      nb.copy(A.nb).applyQuaternion(l.b.mesh.quaternion);
+      // Lean the normals toward each other so the bridge reaches, not splays.
+      na.lerp(dir, 0.5).normalize();
+      nb.lerp(dir.clone().negate(), 0.5).normalize();
 
       side.crossVectors(dir, new Vector3(0, 0, 1)).normalize();
       const grow = Math.min(1, (this.time - l.born - 0.6) / 2.4);
@@ -285,14 +283,7 @@ export class Field {
       const strength = Math.min(1, Math.max(0, (l.k - 0.6) / 0.4));
       const filament = Math.min(l.a.radius, l.b.radius) * (BRIDGE.filament[0] + (BRIDGE.filament[1] - BRIDGE.filament[0]) * strength);
       const sway = Math.sin(this.time * 0.35 + l.phase);
-      l.bridge.update(A.pa, A.na, A.pb, A.nb, l.a.radius * BRIDGE.root, l.b.radius * BRIDGE.root, filament, side, sway, g, focus);
-      pa.copy(A.pa); pb.copy(A.pb);
-      // Label at the middle of the main strand, only for the form in focus.
-      const show = this.hovered && (l.a === this.hovered || l.b === this.hovered) && g > 0.98;
-      const mid = new Vector3().addVectors(pa, pb).multiplyScalar(0.5).addScaledVector(side, 0.14);
-      const p = this.project(mid);
-      l.label.style.transform = `translate(${p.x + 6}px, ${p.y - 8}px)`;
-      l.label.style.opacity = show ? '1' : '0';
+      l.bridge.update(pa, na, pb, nb, l.a.radius * BRIDGE.root, l.b.radius * BRIDGE.root, filament, side, sway, g, focus);
     }
 
     // Names beneath forms.

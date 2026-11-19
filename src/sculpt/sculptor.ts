@@ -1,23 +1,23 @@
-import { Vector3 } from 'three';
+import { Quaternion, Vector3 } from 'three';
+import { Volume } from './volume';
 import type { Atelier } from '../render/atelier';
 
-export type ToolKind = 'drill' | 'extrude' | 'smooth' | 'turn';
+export type ToolKind = 'extrude' | 'spike' | 'drill' | 'smooth' | 'turn';
 
 export const TOOLS: { kind: ToolKind; name: string; hand: string; key: string }[] = [
-  { kind: 'extrude', name: 'Extrude', hand: 'pinch and drag', key: '1' },
-  { kind: 'drill', name: 'Pierce', hand: 'pinch and hold', key: '2' },
-  { kind: 'smooth', name: 'Smooth', hand: 'pinch and move', key: '3' },
-  { kind: 'turn', name: 'Rotate', hand: 'pinch and drag', key: '4' },
+  { kind: 'extrude', name: 'Extrude', hand: 'pinch and pull', key: '1' },
+  { kind: 'spike', name: 'Spike', hand: 'pinch and pull', key: '2' },
+  { kind: 'drill', name: 'Pierce', hand: 'pinch and hold', key: '3' },
+  { kind: 'smooth', name: 'Smooth', hand: 'pinch and move', key: '4' },
+  { kind: 'turn', name: 'Rotate', hand: 'pinch and drag', key: '5' },
 ];
 
 interface ExtrudeStroke {
   P: Vector3; // grabbed surface point (local)
   N: Vector3; // surface normal at P (local)
-  sx: number; // screen direction that means "outward"
-  sy: number;
   wpp: number; // world units per screen pixel at the grab depth
-  amount: number; // eased, signed distance along N
-  lat: Vector3; // eased sideways bend (local)
+  amount: number; // eased length along N
+  profile: Profile;
   vid: number; // stroke id in the volume
 }
 
@@ -73,55 +73,61 @@ export class Sculptor {
   // ───────────── Extrude ─────────────
 
   /**
-   * Grab a round face of the surface. Dragging along the face's outward
-   * direction (as seen on screen) extrudes it; dragging the other way insets
-   * it; dragging sideways bends the extrusion, and its end face turns toward
-   * the direction of travel.
+   * Grab a round face of the surface. The extrusion always grows straight out
+   * of the face, along its normal; as you pull, the whole form turns so that
+   * face points along your pull, so the shape follows your hand naturally.
+   * The form stays where it turned when you let go.
    */
-  beginExtrude(id: string, hit: { point: Vector3; dist: number }) {
+  beginExtrude(id: string, hit: { point: Vector3; dist: number }, profile: Profile = ROUNDED) {
     const P = this.local(hit.point, new Vector3());
     if (this.vol.sample(P.x, P.y, P.z) > 0.05) return false;
     const N = this.vol.gradient(P, new Vector3());
-
-    // How the face's normal looks on screen, to read drags in its terms.
-    const nWorld = N.clone().applyQuaternion(this.atelier.object.quaternion);
     const s0 = this.atelier.project(hit.point);
-    const s1 = this.atelier.project(hit.point.clone().addScaledVector(nWorld, 0.1));
     const p0 = this.atelier.pointOnRay(s0.x, s0.y, hit.dist, new Vector3());
     const p1 = this.atelier.pointOnRay(s0.x + 1, s0.y, hit.dist, new Vector3());
     const wpp = p0.distanceTo(p1) / this.atelier.object.scale.x;
-    let nx = ((s1.x - s0.x) * wpp) / 0.1, ny = ((s1.y - s0.y) * wpp) / 0.1;
-    const facing = Math.min(1, Math.hypot(nx, ny));
-    // A face pointing at the camera has no screen direction: use "up" for out.
-    ny += -1 * (1 - facing);
-    const l = Math.hypot(nx, ny) || 1;
-
     const vid = this.vol.beginStroke();
-    this.strokes.set(id, { P, N, sx: nx / l, sy: ny / l, wpp, amount: 0, lat: new Vector3(), vid });
+    this.strokes.set(id, { P, N, wpp, amount: 0, profile, vid });
     return true;
   }
 
-  /** Drag in screen pixels since the grab started. */
-  dragExtrude(id: string, dx: number, dy: number) {
+  /** Drag in screen pixels since the grab started; dt in seconds. */
+  dragExtrude(id: string, dx: number, dy: number, dt: number) {
     const st = this.strokes.get(id);
     if (!st) return false;
-    const along = dx * st.sx + dy * st.sy;
-    const px = dx - st.sx * along, py = dy - st.sy * along;
-    const target = Math.min(0.6, Math.max(-0.4, along * st.wpp * 0.55));
-    // Sideways drag in world, then into the object's frame.
-    const cam = this.atelier.camera;
-    const right = new Vector3(1, 0, 0).applyQuaternion(cam.quaternion);
-    const up = new Vector3(0, 1, 0).applyQuaternion(cam.quaternion);
-    const latW = right.multiplyScalar(px).addScaledVector(up, -py).multiplyScalar(st.wpp * 0.4);
-    const latL = this.atelier.toLocalDir(latW, new Vector3());
-    latL.addScaledVector(st.N, -latL.dot(st.N)); // keep the bend tangent to the face
+    const len = Math.hypot(dx, dy);
 
-    // Ease: the clay follows the hand with a little weight.
+    // Turn the form so the grabbed face points along the pull (eased, ~0.5 s).
+    // With two hands extruding, each keeps the form still for the other.
+    if (len > 6 && this.strokes.size === 1) {
+      const cam = this.atelier.camera;
+      const pull = new Vector3(1, 0, 0).applyQuaternion(cam.quaternion).multiplyScalar(dx / len)
+        .addScaledVector(new Vector3(0, 1, 0).applyQuaternion(cam.quaternion), -dy / len);
+      const obj = this.atelier.object;
+      const nWorld = st.N.clone().applyQuaternion(obj.quaternion);
+      const full = new Quaternion().setFromUnitVectors(nWorld, pull.normalize());
+      const step = new Quaternion().slerp(full, 1 - Math.exp(-dt * 6));
+      obj.quaternion.premultiply(step);
+    }
+
+    // Length follows the pull, with a little weight; never past the volume.
+    const target = Math.min(this.reach(st), len * st.wpp * 0.6);
     st.amount += (target - st.amount) * 0.22;
-    st.lat.lerp(latL, 0.22);
     this.applyExtrude(st);
     this.atelier.touch();
     return true;
+  }
+
+  /** How far a stroke can grow along N before leaving the sculpting volume. */
+  private reach(st: ExtrudeStroke) {
+    const L = Volume.LIMIT - this.brush * (st.profile.tip + 0.15) - 0.02;
+    let t = Infinity;
+    for (const a of ['x', 'y', 'z'] as const) {
+      const n = st.N[a];
+      if (Math.abs(n) < 1e-4) continue;
+      t = Math.min(t, ((n > 0 ? L : -L) - st.P[a]) / n);
+    }
+    return Math.max(0, t);
   }
 
   endExtrude(id: string) {
@@ -133,22 +139,14 @@ export class Sculptor {
 
   private applyExtrude(st: ExtrudeStroke) {
     const r = this.brush;
-    const { P, N, amount, lat } = st;
-    const out = amount >= 0;
-    const prof = out ? ROUNDED : PUNCTURE;
-    // Root below the surface so the stroke grows out of (or into) the body.
-    // The tip stays hidden until the drag passes a small dead zone.
-    const start = P.clone().addScaledVector(N, out ? -r * 0.9 : r * 0.4);
-    const reach = out ? amount - r * (0.3 + prof.tip * 0.5) : amount;
-    const ctrl = P.clone().addScaledVector(N, reach * 0.55);
-    const end = P.clone().addScaledVector(N, reach).addScaledVector(lat, out ? 1 : 0.5);
-    const path = bezier(start, ctrl, end, 12);
-    this.vol.setStroke(st.vid, {
-      path,
-      radii: taper(path.length, r, prof),
-      sign: out ? 1 : -1,
-      blend: r * prof.blend,
-    });
+    const { P, N, amount, profile } = st;
+    // Root below the surface so the shape grows out of the body; the tip
+    // stays hidden until the pull passes a small dead zone.
+    const start = P.clone().addScaledVector(N, -r * 0.9);
+    const end = P.clone().addScaledVector(N, amount - r * (0.3 + profile.tip * 0.5));
+    const path: Vector3[] = [];
+    for (let i = 0; i <= 12; i++) path.push(start.clone().lerp(end, i / 12));
+    this.vol.setStroke(st.vid, { path, radii: taper(path.length, r, profile), sign: 1, blend: r * profile.blend });
   }
 }
 
@@ -164,9 +162,8 @@ export interface Profile {
 }
 /** Default: a clean, rounded taper ending in a soft round tip. */
 export const ROUNDED: Profile = { tip: 0.5, power: 0.85, blend: 0.65 };
-/** A sharp needle, kept for later. */
-export const SPIKE: Profile = { tip: 0.035, power: 1.35, blend: 0.6 };
-export const PUNCTURE: Profile = { tip: 0.55, power: 0.8, blend: 0.3 };
+/** A sharp, thin needle: an almost straight cone to a fine point. */
+export const SPIKE: Profile = { tip: 0.02, power: 1.05, blend: 0.45 };
 
 function taper(n: number, r: number, p: Profile) {
   const radii: number[] = [];
@@ -177,11 +174,3 @@ function taper(n: number, r: number, p: Profile) {
   return radii;
 }
 
-function bezier(a: Vector3, c: Vector3, b: Vector3, n: number) {
-  const pts: Vector3[] = [];
-  for (let i = 0; i <= n; i++) {
-    const t = i / n, u = 1 - t;
-    pts.push(new Vector3().addScaledVector(a, u * u).addScaledVector(c, 2 * u * t).addScaledVector(b, t * t));
-  }
-  return pts;
-}

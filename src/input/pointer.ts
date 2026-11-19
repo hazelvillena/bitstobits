@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import type { Atelier } from '../render/atelier';
-import type { Sculptor, ToolKind } from '../sculpt/sculptor';
+import { ROUNDED, SPIKE, type Sculptor, type ToolKind } from '../sculpt/sculptor';
 
 /**
  * Pointer input: a precise path for testing and a full fallback when no
@@ -35,9 +35,9 @@ export class PointerInput {
       this.setPos(e);
       this.startX = this.lastX = this.x;
       this.startY = this.lastY = this.y;
-      if (!this.turning && this.tool === 'extrude') {
+      if (!this.turning && (this.tool === 'extrude' || this.tool === 'spike')) {
         const hit = this.atelier.castSurface(this.x, this.y);
-        this.extruding = !!hit && this.sculptor.beginExtrude('pointer', hit);
+        this.extruding = !!hit && this.sculptor.beginExtrude('pointer', hit, this.tool === 'spike' ? SPIKE : ROUNDED);
       }
     });
     el.addEventListener('pointermove', (e) => this.setPos(e));
@@ -87,7 +87,7 @@ export class PointerInput {
       return [];
     }
     if (this.extruding) {
-      this.sculptor.dragExtrude('pointer', this.x - this.startX, this.y - this.startY);
+      this.sculptor.dragExtrude('pointer', this.x - this.startX, this.y - this.startY, dt);
       return this.cast() ? [{ pos: this.hit.clone(), strength: 1 }] : [];
     }
     if (!this.hover || !this.cast()) return [];

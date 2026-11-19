@@ -9,7 +9,7 @@ import {
   Vector3,
 } from 'three';
 import { palette } from '../ui/tokens';
-import { materialIndex, materialUniforms, surfaceGLSL, type MaterialKind } from '../render/materials';
+import { materialValue, surfaceGLSL } from '../render/materials';
 
 const SEG = 72; // along
 const RAD = 14; // around
@@ -35,7 +35,7 @@ export class Bridge {
   private nor: Float32Array;
   private mat: ShaderMaterial;
 
-  constructor(matA: MaterialKind, matB: MaterialKind, trait: string) {
+  constructor(matA: string | undefined, matB: string | undefined, trait: string) {
     const nv = (SEG + 1) * RAD;
     this.pos = new Float32Array(nv * 3);
     this.nor = new Float32Array(nv * 3);
@@ -62,9 +62,8 @@ export class Bridge {
       side: DoubleSide,
       transparent: true,
       uniforms: {
-        ...materialUniforms(matA),
-        uMatA: { value: materialIndex(matA) },
-        uMatB: { value: materialIndex(matB) },
+        uMatA: { value: materialValue(matA ?? '') },
+        uMatB: { value: materialValue(matB ?? '') },
         uGrow: { value: 0 },
         uOpacity: { value: 1 },
         uFocus: { value: 1 },
@@ -87,7 +86,6 @@ export class Bridge {
       `,
       fragmentShader: /* glsl */ `
         precision highp float;
-        uniform int uMatA, uMatB;
         uniform float uGrow, uOpacity, uFocus;
         uniform vec3 uTrait, uPlate;
         in float vT;
@@ -96,17 +94,16 @@ export class Bridge {
         in vec3 vW;
         out vec4 fragColor;
         ${surfaceGLSL}
+        uniform Mat uMatA;
+        uniform Mat uMatB;
         void main() {
-          // Both lobes reach out from their forms and meet in the middle.
-          float reach = uGrow * 0.5;
-          if (vT > reach && vT < 1.0 - reach) discard;
           vec3 n = normalize(vN);
           vec3 V = normalize(vView);
           // The waist is a saddle: concave along the bridge.
           float waist = 1.0 - abs(vT - 0.5) * 2.0;
           float curv = mix(0.3, -0.2, waist);
-          vec3 a = shadeSurfaceM(uMatA, n, V, vW, curv, 0.45, 0.0, 1.0);
-          vec3 b = shadeSurfaceM(uMatB, n, V, vW, curv, 0.45, 0.0, 1.0);
+          vec3 a = shade(uMatA, n, V, vW, curv, 0.45, 0.0, 1.0);
+          vec3 b = shade(uMatB, n, V, vW, curv, 0.45, 0.0, 1.0);
           vec3 col = mix(a, b, smoothstep(0.38, 0.62, vT));
           // The reason: a fine band in the trait colour at the waist.
           float band = 1.0 - smoothstep(0.004, 0.008, abs(vT - 0.5));
@@ -164,7 +161,8 @@ export class Bridge {
       // Radius: a flared root at each form easing into a fine filament.
       const fa = Math.exp(-((t / BRIDGE.flare) ** 2));
       const fb = Math.exp(-(((1 - t) / BRIDGE.flare) ** 2));
-      const r = (filament + (rA - filament) * fa + (rB - filament) * fb) * Math.min(1, grow * 1.6 + 0.25);
+      // Growing thickens the whole bridge from a hairline: always attached at both ends.
+      const r = (filament + (rA - filament) * fa + (rB - filament) * fb) * (0.08 + 0.92 * grow);
 
       for (let j = 0; j < RAD; j++) {
         const th = (j / RAD) * Math.PI * 2;
