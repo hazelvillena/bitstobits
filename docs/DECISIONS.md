@@ -2,6 +2,18 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-18 (spikes, filaments, warm gray)
+
+**Extrude becomes Spike.** Round-ended tubes read as blunt and unintended. Strokes are now tapered sweeps: round cones along a curve, from the full brush at the root to a fine tip, with a soft fillet into the body. Dragging the other way punctures a tapered hole. Profiles (`SPIKE`, `PUNCTURE` in `sculptor.ts`) are plain data, so new stroke shapes are a few numbers.
+
+**Reusable distance primitives.** `src/sculpt/sdf.ts` holds smooth min/max, capsule, round cone, sweep and bounds. The volume composes generic `StrokeShape`s (path, radii, sign, blend) and knows nothing about specific tools.
+
+**No orbit cage.** The wire icosahedron around the form is gone.
+
+**Filament bridges.** The lobes were too thick and the anchors jumped between mesh vertices, so bridges looked heavy and jittery. Now a flared root eases into one fine filament with a slow S-curve. Anchors are a weighted average of the surface points facing each other and are eased over time, so they glide. Shape constants are in `BRIDGE`.
+
+**Warm gray collection.** New `--field` token (#dcd8d1); kept forms and bridges fade toward it when out of focus. Obsidian no longer has a particle dust.
+
 ## 2026-11-18 (two hands, toolbar, symbiosis)
 
 **Rotation only on purpose.** Removed the slow idle spin that started whenever no tool was acting; it read as the form turning under a pointing finger. The form now turns only with Rotate (pinch and drag, or right drag).

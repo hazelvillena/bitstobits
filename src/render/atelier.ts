@@ -1,10 +1,6 @@
 import {
   BoxGeometry,
   Group,
-  IcosahedronGeometry,
-  LineBasicMaterial,
-  LineSegments,
-  EdgesGeometry,
   Mesh,
   PerspectiveCamera,
   Quaternion,
@@ -17,7 +13,6 @@ import {
 import { Volume } from '../sculpt/volume';
 import { createClayMaterial, MAX_TIPS } from './clayMaterial';
 import { createParticleSkin } from './particleSkin';
-import { palette } from '../ui/tokens';
 import { materialIndex, type MaterialKind } from './materials';
 
 /** Plate I: the sculpting chamber. */
@@ -31,7 +26,6 @@ export class Atelier {
 
   private clay: ReturnType<typeof createClayMaterial>;
   private skin: ReturnType<typeof createParticleSkin>;
-  private cage: LineSegments;
   private time = 0;
   private spin = new Vector2(); // angular velocity (x: yaw, y: pitch)
   private idle = 0;
@@ -62,13 +56,6 @@ export class Atelier {
     this.skin = createParticleSkin(this.volume, 56000, this.tips);
     this.object.add(this.skin.points);
 
-    // A sparse wire cage, the measured envelope around the matter.
-    const cageGeo = new EdgesGeometry(new IcosahedronGeometry(1.12, 0));
-    this.cage = new LineSegments(
-      cageGeo,
-      new LineBasicMaterial({ color: palette.signal, transparent: true, opacity: 0.4, depthWrite: false }),
-    );
-    this.scene.add(this.cage);
 
     this.object.rotation.set(0.25, -0.5, 0);
     this.scene.add(this.object);
@@ -80,8 +67,8 @@ export class Atelier {
     this.material = kind;
     this.clay.uniforms.uMaterial.value = materialIndex(kind);
     // The particle skin is part of the drawing language: full in Lines,
-    // a fine dust on Pearl and Obsidian, absent on Graphic.
-    const skin = { pearl: 0.22, obsidian: 0.14, graphic: 0, lines: 1 }[kind];
+    // a fine dust on Pearl, absent on the glossy Obsidian and Graphic.
+    const skin = { pearl: 0.22, obsidian: 0, graphic: 0, lines: 1 }[kind];
     this.skin.material.uniforms.uSkin.value = skin;
     this.skin.points.visible = skin > 0;
     this.skin.material.uniforms.uSkinLight.value = { pearl: 0.55, obsidian: 0.85, graphic: 0, lines: 0 }[kind];
@@ -212,8 +199,6 @@ export class Atelier {
     }
     this.held = false;
 
-    this.cage.rotation.y += dt * 0.03;
-    this.cage.rotation.x = Math.sin(this.time * 0.11) * 0.2;
 
     this.grow = Math.min(1, this.grow + dt * 0.9);
     const g = 1 - Math.pow(1 - this.grow, 3);
@@ -234,7 +219,6 @@ export class Atelier {
     su.uDissolve.value = this.dissolve;
     su.uScale.value = this.renderer.getPixelRatio() * this.canvas.clientHeight / 900;
     su.uOpacity.value = g;
-    (this.cage.material as LineBasicMaterial).opacity = 0.38 * (1 - this.dissolve) * g;
   }
 
   render() {

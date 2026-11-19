@@ -19,13 +19,13 @@ Pick a tool with keys 1 to 4 or the toolbar at the bottom of the sculpt pane. Th
 
 | Key | Tool | While pinched (or mouse held) |
 |---|---|---|
-| 1 | Extrude | Drag along the face's outward direction to extrude it, the other way to inset it. Drag sideways to bend it; the end face turns toward the direction of travel. Moving back undoes, so you can find the right length. |
+| 1 | Spike | Drag along the surface's outward direction to draw a needle out of it; the other way punctures a tapered hole. Drag sideways to curve it. Moving back undoes, so you can find the right length. |
 | 2 | Pierce | Hold to bore slowly; move to carve a groove |
 | 3 | Smooth | Move across the surface |
 | 4 | Rotate | Drag anywhere (mouse: right drag). The form follows your hand exactly and glides briefly on release. It never turns on its own. |
 | Enter | Keep | |
 
-Both hands can extrude at the same time. `[` and `]` (or the size control in the toolbar) change the brush size; the surface shows its exact outline. `M` cycles the material. Every tool eases in over a third of a second and is rate-limited, so changes are small and deliberate.
+Both hands can draw spikes at the same time. `[` and `]` (or the size control in the toolbar) change the brush size; the surface shows its exact outline. `M` cycles the material. Every tool eases in over a third of a second and is rate-limited, so changes are small and deliberate.
 
 Other keys: `N` start over, `C` recalibrate. Drag the divider to resize the panes (double-click for an even split). `?layout=rows` stacks them for a portrait screen.
 
@@ -55,7 +55,7 @@ Other keys: `N` start over, `C` recalibrate. Drag the divider to resize the pane
 
 Forms are stored in IndexedDB.
 
-**Bridges.** Related forms are joined by symbiotic bridges: each form grows a lobe of its own matter toward its relative, and the lobes meet in a narrow waist. Each side wears its own form's material, and a fine band at the waist in the trait colour says why they are joined. Closer kin get a thicker waist.
+**Bridges.** Related forms are joined by symbiotic filaments: each form flares a root of its own matter toward its relative, easing into one fine filament that flows in a slow S-curve. Each half wears its own form's material, and a fine band at the middle in the trait colour says why they are joined. Closer kin get a slightly thicker filament. Anchors glide over the surfaces as forms turn.
 
 **Kinship.** A weighted distance between trait vectors becomes a kinship score (0 to 1). Each form links to up to 3 relatives above 0.62. The explanation for a link is the trait the two forms share most distinctively against the rest of the collection. Each form keeps up to two relatives.
 
@@ -63,7 +63,7 @@ Forms are stored in IndexedDB.
 
 ```
 src/
-  sculpt/    volume (field, brushes), sculptor (tools), seed (starting lumps, samples)
+  sculpt/    sdf (distance primitives), volume (field, brushes, strokes), sculptor (tools, profiles), seed
   render/    atelier scene, clay raymarch material, particle skin
   input/     hand worker, tracker, hand model and filters, calibration, hand → tools, pointer
   specimen/  mesher (surface nets), signature (traits, kinship), specimen (naming, storage)
@@ -80,7 +80,7 @@ src/
 - [x] Keeping forms: mesh, traits, naming, storage
 - [x] Collection: kinship layout, ligaments, hover detail
 - [ ] Tune gestures with a real camera session (depth gain, pinch threshold)
-- [x] Face extrude with bend and inset
+- [x] Spikes (tapered, curving) and punctures; two hands at once
 - [ ] Twist and two-hand squeeze
 - [x] Materials: Pearl, Obsidian, Graphic, Lines
 - [ ] Export a form (glTF)

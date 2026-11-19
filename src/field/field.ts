@@ -10,7 +10,7 @@ import {
 import type { Specimen } from '../specimen/specimen';
 import { kinship, sharedTraits } from '../specimen/signature';
 import { createSpecimenMaterial } from './specimenMaterial';
-import { Bridge } from './bridge';
+import { Bridge, BRIDGE } from './bridge';
 import { traitHex, traitLabel, type TraitKey } from '../ui/tokens';
 
 const THRESHOLD = 0.62;
@@ -37,6 +37,9 @@ interface Link {
   traits: { trait: TraitKey; score: number }[];
   born: number;
   bridge: Bridge;
+  /** Smoothed anchors, so bridges glide instead of snapping between vertices. */
+  anchor: { pa: Vector3; na: Vector3; pb: Vector3; nb: Vector3 } | null;
+  phase: number;
   label: HTMLDivElement;
 }
 
@@ -98,7 +101,7 @@ export class Field {
     this.scene.add(mesh);
 
     const nv = spec.mesh.positions.length / 3;
-    const step = Math.max(1, Math.floor(nv / 240));
+    const step = Math.max(1, Math.floor(nv / 700));
     const sample: number[] = [];
     for (let i = 0; i < nv; i += step) sample.push(i);
 
@@ -169,7 +172,7 @@ export class Field {
         ? `<i style="background:${traitHex[t0.trait]}"></i>${traitLabel[t0.trait]} ${fmt(t0.trait, w.a.spec.sig[t0.trait])} and ${fmt(t0.trait, w.b.spec.sig[t0.trait])}`
         : '';
       this.labels.appendChild(label);
-      next.push({ a: w.a, b: w.b, k: w.k, traits, born: this.time, bridge, label });
+      next.push({ a: w.a, b: w.b, k: w.k, traits, born: this.time, bridge, label, anchor: null, phase: Math.random() * Math.PI * 2 });
     }
     for (const l of old.values()) this.disposeLink(l);
     this.links = next;
@@ -191,17 +194,25 @@ export class Field {
     const ld = dir.clone().applyQuaternion(inv);
     const P = it.mesh.geometry.getAttribute('position').array as Float32Array;
     const N = it.spec.mesh.normals;
-    let best = -Infinity, bi = 0;
+    // Weighted average of the points facing furthest along dir: continuous,
+    // so the anchor slides over the surface instead of jumping.
+    let best = -Infinity;
+    for (const i of it.sample) best = Math.max(best, P[i * 3] * ld.x + P[i * 3 + 1] * ld.y + P[i * 3 + 2] * ld.z);
+    const band = 0.04 / it.mesh.scale.x;
+    let w = 0;
+    out.set(0, 0, 0);
+    nOut.set(0, 0, 0);
     for (const i of it.sample) {
       const d = P[i * 3] * ld.x + P[i * 3 + 1] * ld.y + P[i * 3 + 2] * ld.z;
-      if (d > best) {
-        best = d;
-        bi = i;
-      }
+      if (d < best - band) continue;
+      const wi = 1 - (best - d) / band;
+      out.x += P[i * 3] * wi; out.y += P[i * 3 + 1] * wi; out.z += P[i * 3 + 2] * wi;
+      nOut.x += N[i * 3] * wi; nOut.y += N[i * 3 + 1] * wi; nOut.z += N[i * 3 + 2] * wi;
+      w += wi;
     }
-    out.set(P[bi * 3], P[bi * 3 + 1], P[bi * 3 + 2]);
+    out.divideScalar(w || 1);
     it.mesh.localToWorld(out);
-    nOut.set(N[bi * 3], N[bi * 3 + 1], N[bi * 3 + 2]).applyQuaternion(it.mesh.quaternion).normalize();
+    nOut.applyQuaternion(it.mesh.quaternion).normalize();
   }
 
   update(dt: number) {
@@ -254,21 +265,28 @@ export class Field {
     // Bridges.
     const pa = new Vector3(), pb = new Vector3(), na = new Vector3(), nb = new Vector3();
     const side = new Vector3();
+    const ease = 1 - Math.exp(-dt * 3);
     for (const l of this.links) {
       const dir = l.b.pos.clone().sub(l.a.pos).normalize();
       this.support(l.a, dir, pa, na);
       this.support(l.b, dir.clone().negate(), pb, nb);
-      // Lean the anchor normals toward each other so lobes reach, not splay.
-      na.lerp(dir, 0.55).normalize();
-      nb.lerp(dir.clone().negate(), 0.55).normalize();
+      // Lean the normals toward each other so the bridge reaches, not splays.
+      na.lerp(dir, 0.5).normalize();
+      nb.lerp(dir.clone().negate(), 0.5).normalize();
+      if (!l.anchor) l.anchor = { pa: pa.clone(), na: na.clone(), pb: pb.clone(), nb: nb.clone() };
+      const A = l.anchor;
+      A.pa.lerp(pa, ease); A.pb.lerp(pb, ease);
+      A.na.lerp(na, ease).normalize(); A.nb.lerp(nb, ease).normalize();
+
       side.crossVectors(dir, new Vector3(0, 0, 1)).normalize();
-      const grow = Math.min(1, (this.time - l.born - 0.6) / 2.2);
+      const grow = Math.min(1, (this.time - l.born - 0.6) / 2.4);
       const g = grow <= 0 ? 0 : 1 - Math.pow(1 - grow, 3);
       const focus = this.hovered ? (l.a === this.hovered || l.b === this.hovered ? 1 : 0.35) : 1;
-      // Lobes are a share of each form; closer kin share a thicker waist.
-      const rA = l.a.radius * 0.34, rB = l.b.radius * 0.34;
-      const waist = Math.min(rA, rB) * (0.12 + 0.3 * (l.k - 0.6) / 0.4);
-      l.bridge.update(pa, na, pb, nb, rA, rB, waist, g, focus);
+      const strength = Math.min(1, Math.max(0, (l.k - 0.6) / 0.4));
+      const filament = Math.min(l.a.radius, l.b.radius) * (BRIDGE.filament[0] + (BRIDGE.filament[1] - BRIDGE.filament[0]) * strength);
+      const sway = Math.sin(this.time * 0.35 + l.phase);
+      l.bridge.update(A.pa, A.na, A.pb, A.nb, l.a.radius * BRIDGE.root, l.b.radius * BRIDGE.root, filament, side, sway, g, focus);
+      pa.copy(A.pa); pb.copy(A.pb);
       // Label at the middle of the main strand, only for the form in focus.
       const show = this.hovered && (l.a === this.hovered || l.b === this.hovered) && g > 0.98;
       const mid = new Vector3().addVectors(pa, pb).multiplyScalar(0.5).addScaledVector(side, 0.14);

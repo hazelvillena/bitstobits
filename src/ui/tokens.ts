@@ -5,6 +5,7 @@ export const palette = {
   ink: new Color('#1b2127'),
   paper: new Color('#f1f3f4'),
   plate: new Color('#f3f1ec'),
+  field: new Color('#dcd8d1'),
   rose: new Color('#f0a3c4'),
   magenta: new Color('#d2237a'),
   ultramarine: new Color('#3b3fcf'),

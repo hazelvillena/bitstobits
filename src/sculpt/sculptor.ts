@@ -4,7 +4,7 @@ import type { Atelier } from '../render/atelier';
 export type ToolKind = 'drill' | 'extrude' | 'smooth' | 'turn';
 
 export const TOOLS: { kind: ToolKind; name: string; hand: string; key: string }[] = [
-  { kind: 'extrude', name: 'Extrude', hand: 'pinch and drag', key: '1' },
+  { kind: 'extrude', name: 'Spike', hand: 'pinch and drag', key: '1' },
   { kind: 'drill', name: 'Pierce', hand: 'pinch and hold', key: '2' },
   { kind: 'smooth', name: 'Smooth', hand: 'pinch and move', key: '3' },
   { kind: 'turn', name: 'Rotate', hand: 'pinch and drag', key: '4' },
@@ -134,20 +134,44 @@ export class Sculptor {
   private applyExtrude(st: ExtrudeStroke) {
     const r = this.brush;
     const { P, N, amount, lat } = st;
-    if (amount >= 0) {
-      // Root inside the body so the face rises out of it.
-      const start = P.clone().addScaledVector(N, -r * 0.8);
-      const ctrl = P.clone().addScaledVector(N, amount * 0.6);
-      // The face sits just below the surface until the drag passes a small dead zone.
-      const end = P.clone().addScaledVector(N, amount - r * 0.25).add(lat);
-      this.vol.setStroke(st.vid, bezier(start, ctrl, end, 8), r, 1);
-    } else {
-      // Inset: a flat-bottomed pocket aligned to the face.
-      const start = P.clone().addScaledVector(N, r * 0.5);
-      const end = P.clone().addScaledVector(N, amount).addScaledVector(lat, 0.5);
-      this.vol.setStroke(st.vid, [start, end], r, -1);
-    }
+    const out = amount >= 0;
+    const prof = out ? SPIKE : PUNCTURE;
+    // Root below the surface so the stroke grows out of (or into) the body.
+    // The tip stays hidden until the drag passes a small dead zone.
+    const start = P.clone().addScaledVector(N, out ? -r * 0.9 : r * 0.4);
+    const reach = out ? amount - r * 0.3 : amount;
+    const ctrl = P.clone().addScaledVector(N, reach * 0.55);
+    const end = P.clone().addScaledVector(N, reach).addScaledVector(lat, out ? 1 : 0.5);
+    const path = bezier(start, ctrl, end, 12);
+    this.vol.setStroke(st.vid, {
+      path,
+      radii: taper(path.length, r, prof),
+      sign: out ? 1 : -1,
+      blend: r * prof.blend,
+    });
   }
+}
+
+/**
+ * Stroke profiles, as fractions of the brush radius. A profile tapers from
+ * the root (full brush) to a fine tip; `power` shapes the taper (above 1
+ * thins quickly, like a needle), `blend` is the fillet into the body.
+ */
+export interface Profile {
+  tip: number;
+  power: number;
+  blend: number;
+}
+export const SPIKE: Profile = { tip: 0.035, power: 1.35, blend: 0.6 };
+export const PUNCTURE: Profile = { tip: 0.18, power: 1.0, blend: 0.22 };
+
+function taper(n: number, r: number, p: Profile) {
+  const radii: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1);
+    radii.push(r * (p.tip + (1 - p.tip) * Math.pow(1 - t, p.power)));
+  }
+  return radii;
 }
 
 function bezier(a: Vector3, c: Vector3, b: Vector3, n: number) {

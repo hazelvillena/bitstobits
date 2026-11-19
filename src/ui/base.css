@@ -59,8 +59,8 @@ body.resizing canvas { pointer-events: none; }
     linear-gradient(180deg, var(--mist-0) 0%, var(--mist-1) 100%);
 }
 .field {
-  background-color: var(--plate);
-  background-image: radial-gradient(rgba(27, 33, 39, 0.14) 0.8px, transparent 1.2px);
+  background-color: var(--field);
+  background-image: radial-gradient(rgba(27, 33, 39, 0.12) 0.8px, transparent 1.2px);
   background-size: 28px 28px;
   background-position: center;
 }
@@ -275,7 +275,7 @@ body.resizing canvas { pointer-events: none; }
   width: 252px;
   padding: var(--s-4);
   border-radius: 14px;
-  background: rgba(243, 241, 236, 0.86);
+  background: rgba(236, 233, 228, 0.86);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 1px 0 var(--hair-soft), 0 12px 32px -18px rgba(27, 33, 39, 0.25);

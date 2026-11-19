@@ -18,7 +18,8 @@ Defined in `src/ui/tokens.css`, mirrored for shaders in `src/ui/tokens.ts`.
 | Token | Use |
 |---|---|
 | `--mist-0 / --mist-1` | Sculpt pane ground, soft vertical gradient |
-| `--plate` | Collection ground, warm paper with a faint dot lattice |
+| `--plate` | Paper for panels and button text |
+| `--field` | Collection ground: warm gray with a faint dot lattice |
 | `--ink`, `--ink-2`, `--ink-3` | Text and lines, three strengths |
 | `--hair` | 1 px rules and borders |
 | `--rose`, `--magenta`, `--ultramarine` | Contour ramp: flat, hollow, ridge |
@@ -33,7 +34,7 @@ Type scale: 10 / 11.5 / 13 / 15 / 30 px, display `clamp(44px, 5vw, 72px)` at wei
 - **Toolbar**: a translucent pill of tool buttons (glyph, name, key) at the bottom of the sculpt pane; the active tool is solid ink. Beside it, a brush size control: minus, a dot that grows with the size, plus. Hand gestures live in tooltips.
 - **Hand overlay**: joints as small open circles, bones as hairlines, and dimension lines with millimetre lengths during calibration. Engaged fingertips fill with signal and pulse.
 - **Inspector**: soft translucent panel with the name, form number, trait bars and relatives with their kinship percentage.
-- **Bridges**: lobes of each form's own matter that reach out and meet in a narrow waist, with a fine trait-colour band at the meeting point. They grow from both sides and recede when another form is in focus.
+- **Bridges**: a flared root of each form's own matter easing into one fine filament with a slow S-curve, and a fine trait-colour band at the middle. They grow from both sides and recede when another form is in focus. Shape constants live in `BRIDGE` (`src/field/bridge.ts`).
 
 ## Materials
 
@@ -46,7 +47,7 @@ Four materials, one data model. Each reads curvature (hollow to ridge), compress
 | Graphic | Bold smooth lime field, deep green through lime to pale chartreuse | Position on the ramp is curvature minus pressure |
 | Lines | The original contour drawing | Line colour is curvature, line density is compression |
 
-The particle skin is part of each language: full in Lines, a fine pale dust on Pearl and Obsidian, absent on Graphic. The brush appears as one crisp outline on the surface.
+The particle skin is part of each language: full in Lines, a fine pale dust on Pearl, absent on Obsidian and Graphic. The brush appears as one crisp outline on the surface.
 
 ## Motion
 

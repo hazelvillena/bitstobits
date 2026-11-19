@@ -11,12 +11,21 @@ import {
 import { palette } from '../ui/tokens';
 import { materialIndex, materialUniforms, surfaceGLSL, type MaterialKind } from '../render/materials';
 
-const SEG = 56; // along
-const RAD = 18; // around
+const SEG = 72; // along
+const RAD = 14; // around
+
+/** Shape of a bridge, as fractions of the joined forms' radii. */
+export const BRIDGE = {
+  root: 0.15, // flared root where it leaves each form
+  filament: [0.022, 0.05] as [number, number], // thin middle, from weak to strong kinship
+  flare: 0.11, // how far along (0..1) the root flare reaches
+  sway: 0.14, // S-curve amplitude, as a share of the span
+  pull: 0.36, // how far the curve follows each surface normal before turning
+};
 
 /**
- * A symbiotic bridge: each form grows a lobe of its own matter toward its
- * relative; the lobes meet in a narrow waist. The bridge wears form A's
+ * A symbiotic bridge: each form flares a root of its own matter toward its
+ * relative, easing into one fine filament that flows between them. The bridge wears form A's
  * material on A's side and B's on B's side, blending at the waist, where a
  * thin band in the trait colour says why they are joined.
  */
@@ -60,7 +69,7 @@ export class Bridge {
         uOpacity: { value: 1 },
         uFocus: { value: 1 },
         uTrait: { value: new Color(trait) },
-        uPlate: { value: palette.plate },
+        uPlate: { value: palette.field },
       },
       vertexShader: /* glsl */ `
         in float aT;
@@ -95,12 +104,12 @@ export class Bridge {
           vec3 V = normalize(vView);
           // The waist is a saddle: concave along the bridge.
           float waist = 1.0 - abs(vT - 0.5) * 2.0;
-          float curv = mix(0.25, -0.45, waist);
+          float curv = mix(0.3, -0.2, waist);
           vec3 a = shadeSurfaceM(uMatA, n, V, vW, curv, 0.45, 0.0, 1.0);
           vec3 b = shadeSurfaceM(uMatB, n, V, vW, curv, 0.45, 0.0, 1.0);
           vec3 col = mix(a, b, smoothstep(0.38, 0.62, vT));
           // The reason: a fine band in the trait colour at the waist.
-          float band = 1.0 - smoothstep(0.006, 0.012, abs(vT - 0.5));
+          float band = 1.0 - smoothstep(0.004, 0.008, abs(vT - 0.5));
           col = mix(col, uTrait, band * step(0.98, uGrow) * 0.9);
           col = mix(uPlate, col, mix(0.3, 1.0, uFocus));
           fragColor = vec4(col, uOpacity);
@@ -113,15 +122,21 @@ export class Bridge {
 
   /**
    * pa/pb: surface anchors, na/nb: outward normals there (world).
-   * rA/rB: lobe radius at each form. waist: radius at the meeting point.
+   * rA/rB: root radius at each form. filament: radius of the thin middle.
+   * side: a direction across the bridge, for its S-curve. sway: -1..1.
    */
-  update(pa: Vector3, na: Vector3, pb: Vector3, nb: Vector3, rA: number, rB: number, waist: number, grow: number, focus: number) {
+  update(
+    pa: Vector3, na: Vector3, pb: Vector3, nb: Vector3,
+    rA: number, rB: number, filament: number,
+    side: Vector3, sway: number, grow: number, focus: number,
+  ) {
     const span = pa.distanceTo(pb);
-    // Roots start inside each form so the lobe reads as its own matter.
-    const a0 = pa.clone().addScaledVector(na, -rA * 0.8);
-    const b0 = pb.clone().addScaledVector(nb, -rB * 0.8);
-    const c1 = pa.clone().addScaledVector(na, span * 0.38);
-    const c2 = pb.clone().addScaledVector(nb, span * 0.38);
+    // Roots start inside each form so the bridge reads as its own matter.
+    const a0 = pa.clone().addScaledVector(na, -rA * 0.9);
+    const b0 = pb.clone().addScaledVector(nb, -rB * 0.9);
+    const bend = span * BRIDGE.sway * sway;
+    const c1 = pa.clone().addScaledVector(na, span * BRIDGE.pull).addScaledVector(side, bend);
+    const c2 = pb.clone().addScaledVector(nb, span * BRIDGE.pull).addScaledVector(side, -bend);
 
     const P = new Vector3(), T = new Vector3(), N = new Vector3(), B = new Vector3();
     const prevN = new Vector3();
@@ -146,10 +161,10 @@ export class Bridge {
       prevN.copy(N);
       B.crossVectors(T, N);
 
-      // Radius: full lobes at each form, an hourglass waist where they meet.
-      const lobe = t < 0.5 ? rA : rB;
-      const s = Math.pow(Math.sin(Math.PI * t), 0.6);
-      const r = (lobe + (waist - lobe) * s) * Math.min(1, grow * 1.6 + 0.25);
+      // Radius: a flared root at each form easing into a fine filament.
+      const fa = Math.exp(-((t / BRIDGE.flare) ** 2));
+      const fb = Math.exp(-(((1 - t) / BRIDGE.flare) ** 2));
+      const r = (filament + (rA - filament) * fa + (rB - filament) * fb) * Math.min(1, grow * 1.6 + 0.25);
 
       for (let j = 0; j < RAD; j++) {
         const th = (j / RAD) * Math.PI * 2;

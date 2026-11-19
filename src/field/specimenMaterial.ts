@@ -12,7 +12,7 @@ export function createSpecimenMaterial(kind: MaterialKind) {
     uniforms: {
       uOpacity: { value: 0 },
       uFocus: { value: 1 }, // 1 normal, <1 recedes when another form is in focus
-      uPlate: { value: palette.plate },
+      uPlate: { value: palette.field },
       ...materialUniforms(kind),
     },
     vertexShader: /* glsl */ `

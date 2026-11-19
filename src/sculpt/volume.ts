@@ -9,6 +9,17 @@ import {
   ClampToEdgeWrapping,
   Vector3,
 } from 'three';
+import { smax, smin, sdSweep, sweepBounds } from './sdf';
+
+export { smin, smax } from './sdf';
+
+/** A stroke's shape: a tapered sweep, added (+1) or carved (-1), filleted by `blend`. */
+export interface StrokeShape {
+  path: Vector3[];
+  radii: number[];
+  sign: 1 | -1;
+  blend: number;
+}
 
 /**
  * Signed distance field volume over object space [-1, 1]^3.
@@ -281,7 +292,7 @@ export class Volume {
     }
   }
 
-  // ───────────── Extrude (face) ─────────────
+  // ───────────── Strokes (extrude) ─────────────
   // Strokes share one session: a snapshot taken when the first stroke
   // begins. Every active (and recently ended) stroke is replayed onto that
   // snapshot each update, so two hands can extrude at once without either
@@ -289,9 +300,8 @@ export class Volume {
   private snapSdf: Float32Array | null = null;
   private snapComp: Float32Array | null = null;
   private session = false;
-  private strokes = new Map<number, { path: Vector3[]; r: number; sign: 1 | -1; min: number[]; max: number[]; accMin: number[]; accMax: number[]; live: boolean }>();
+  private strokes = new Map<number, { shape: StrokeShape | null; min: number[]; max: number[]; accMin: number[]; accMax: number[]; live: boolean }>();
   private strokesDirty = false;
-  private tmpV = new Vector3();
   private nextStroke = 1;
 
   beginStroke(): number {
@@ -307,7 +317,7 @@ export class Volume {
     }
     const id = this.nextStroke++;
     this.strokes.set(id, {
-      path: [], r: 0, sign: 1, min: [0, 0, 0], max: [0, 0, 0],
+      shape: null, min: [0, 0, 0], max: [0, 0, 0],
       accMin: [Infinity, Infinity, Infinity], accMax: [-Infinity, -Infinity, -Infinity], live: true,
     });
     return id;
@@ -328,36 +338,24 @@ export class Volume {
     }
   }
 
-  /**
-   * Set a stroke's shape: a rounded face swept along `path`, added (sign +1)
-   * or inset (sign -1). The last segment ends in a flat face pointing along
-   * the direction of travel.
-   */
-  setStroke(id: number, path: Vector3[], r: number, sign: 1 | -1) {
+  /** Set a stroke's current shape. Rebuilt once per frame in upload(). */
+  setStroke(id: number, shape: StrokeShape) {
     const st = this.strokes.get(id);
-    if (!st || !this.session || path.length < 2) return;
-    const k = sign > 0 ? r * 0.42 : r * 0.22;
-    const pad = r + k + this.h * 2;
-    const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
-    for (const q of path) {
-      mn[0] = Math.min(mn[0], q.x - pad); mx[0] = Math.max(mx[0], q.x + pad);
-      mn[1] = Math.min(mn[1], q.y - pad); mx[1] = Math.max(mx[1], q.y + pad);
-      mn[2] = Math.min(mn[2], q.z - pad); mx[2] = Math.max(mx[2], q.z + pad);
-    }
-    Object.assign(st, { path, r, sign, min: mn, max: mx });
+    if (!st || !this.session || shape.path.length < 2) return;
+    const { min, max } = sweepBounds(shape.path, shape.radii, shape.blend + this.h * 2);
+    Object.assign(st, { shape, min, max });
     for (let a = 0; a < 3; a++) {
-      st.accMin[a] = Math.min(st.accMin[a], mn[a]);
-      st.accMax[a] = Math.max(st.accMax[a], mx[a]);
+      st.accMin[a] = Math.min(st.accMin[a], min[a]);
+      st.accMax[a] = Math.max(st.accMax[a], max[a]);
     }
-    // Rebuilt once per frame in upload(), however many hands are extruding.
     this.strokesDirty = true;
   }
 
   private rebuild() {
     const snap = this.snapSdf!, snapC = this.snapComp!;
-    const list = [...this.strokes.values()].filter((s) => s.path.length >= 2);
+    const list = [...this.strokes.values()].filter((s) => s.shape);
     const L = Volume.LIMIT;
-    // Only the areas live strokes have touched need rebuilding; ended strokes
+    // Only areas live strokes have touched need rebuilding; ended strokes
     // stay composed wherever a live one overlaps them.
     for (const live of list) if (live.live) this.regionBox(live.accMin, live.accMax, (p, x, y, z) => {
       let d = snap[p];
@@ -365,22 +363,12 @@ export class Volume {
       let infl = 0;
       for (const st of list) {
         if (x < st.min[0] || x > st.max[0] || y < st.min[1] || y > st.max[1] || z < st.min[2] || z > st.max[2]) continue;
-        const r = st.r;
-        const k = st.sign > 0 ? r * 0.42 : r * 0.22;
-        const re = r * 0.24; // edge rounding of the face: crisp but soft
-        // One seamless swept tube (capsules), ending in a flat rounded face.
-        const last = st.path.length - 2;
-        let shape = Infinity;
-        for (let s = 0; s < last; s++) shape = Math.min(shape, sdCapsule(x, y, z, st.path[s], st.path[s + 1], r));
-        // Start the end piece slightly back inside the tube so its rounded
-        // back edge is buried and the joint is seamless.
-        const a = st.path[last], b = st.path[last + 1];
-        const back = this.tmpV.copy(a).sub(b).normalize().multiplyScalar(r * 0.6).add(a);
-        shape = Math.min(shape, sdRoundCylinder(x, y, z, last > 0 ? back : a, b, r, re));
-        d = st.sign > 0 ? smin(d, shape, k) : smax(d, -shape, k);
-        const w = Math.max(0, 1 - Math.max(shape, 0) / (k + 0.03));
+        const { path, radii, sign, blend } = st.shape!;
+        const shape = sdSweep(x, y, z, path, radii);
+        d = sign > 0 ? smin(d, shape, blend) : smax(d, -shape, blend);
+        const w = Math.max(0, 1 - Math.max(shape, 0) / (blend + 0.03));
         if (w > 0) {
-          c = Math.min(1, Math.max(0, c + (st.sign > 0 ? -0.22 : 0.3) * w));
+          c = clamp01(c + (sign > 0 ? -0.22 : 0.3) * w);
           infl = Math.max(infl, w);
         }
       }
@@ -408,39 +396,4 @@ export class Volume {
   }
 }
 
-function sdCapsule(px: number, py: number, pz: number, a: Vector3, b: Vector3, r: number) {
-  const bx = b.x - a.x, by = b.y - a.y, bz = b.z - a.z;
-  const qx = px - a.x, qy = py - a.y, qz = pz - a.z;
-  const t = Math.min(1, Math.max(0, (qx * bx + qy * by + qz * bz) / (bx * bx + by * by + bz * bz || 1e-9)));
-  const dx = qx - bx * t, dy = qy - by * t, dz = qz - bz * t;
-  return Math.sqrt(dx * dx + dy * dy + dz * dz) - r;
-}
-
-/** Cylinder from a to b with radius r and rounded edges re (flat ends). */
-function sdRoundCylinder(px: number, py: number, pz: number, a: Vector3, b: Vector3, r: number, re: number) {
-  let ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
-  const len = Math.sqrt(ux * ux + uy * uy + uz * uz);
-  if (len < 2 * re + 1e-4) {
-    const mx = (a.x + b.x) / 2 - px, my = (a.y + b.y) / 2 - py, mz = (a.z + b.z) / 2 - pz;
-    return Math.sqrt(mx * mx + my * my + mz * mz) - r;
-  }
-  ux /= len; uy /= len; uz /= len;
-  const ax = a.x + ux * re, ay = a.y + uy * re, az = a.z + uz * re;
-  const H = len - 2 * re;
-  const qx = px - ax, qy = py - ay, qz = pz - az;
-  const t = qx * ux + qy * uy + qz * uz;
-  const rad = Math.sqrt(Math.max(0, qx * qx + qy * qy + qz * qz - t * t));
-  const dx = rad - (r - re);
-  const dy = Math.abs(t - H / 2) - H / 2;
-  return Math.min(Math.max(dx, dy), 0) + Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) - re;
-}
-
-export function smin(a: number, b: number, k: number) {
-  if (k <= 0) return Math.min(a, b);
-  const h = Math.max(k - Math.abs(a - b), 0) / k;
-  return Math.min(a, b) - h * h * k * 0.25;
-}
-export function smax(a: number, b: number, k: number) {
-  return -smin(-a, -b, k);
-}
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
