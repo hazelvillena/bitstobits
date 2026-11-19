@@ -193,6 +193,7 @@ field.onHover = (spec, kin) => {
   const kinHtml = kin.length
     ? kin.map((k) => `<div><span><b>${k.spec.name}</b> by ${traitLabel[k.trait].toLowerCase()}</span><span class="num">${Math.round(k.k * 100)}%</span></div>`).join('')
     : `<div><span>No relatives yet</span></div>`;
+  card.placed = false;
   inspector.innerHTML = `<div><h3>${spec.name}</h3></div><div class="sub">Form ${spec.no}</div><div class="bars">${bars}</div><div class="kin">${kinHtml}</div>`;
   inspector.hidden = false;
 };
@@ -203,6 +204,28 @@ loadSpecimens().then((list) => {
   updateCount();
   chrome.setSpecimenNumber(specimens.length + 1);
 });
+
+// The card sits beside the hovered form and follows it.
+const fieldEl = $('field');
+const card = { x: 0, y: 0, placed: false };
+function placeInspector(dt: number) {
+  const a = field.hoverAnchor();
+  if (!a || inspector.hidden) {
+    card.placed = false;
+    return;
+  }
+  const w = inspector.offsetWidth, h = inspector.offsetHeight;
+  const W = fieldEl.clientWidth, H = fieldEl.clientHeight, gap = 16, m = 12;
+  let x = a.x + a.r + gap;
+  if (x + w > W - m) x = a.x - a.r - gap - w;
+  x = Math.min(Math.max(x, m), W - w - m);
+  const y = Math.min(Math.max(a.y - h / 2, m + 32), H - h - m - 48);
+  if (!card.placed) Object.assign(card, { x, y, placed: true });
+  const k = 1 - Math.exp(-dt * 14);
+  card.x += (x - card.x) * k;
+  card.y += (y - card.y) * k;
+  inspector.style.transform = `translate(${card.x.toFixed(1)}px, ${card.y.toFixed(1)}px)`;
+}
 
 // ───── Loop ─────
 const ro = new ResizeObserver(() => {
@@ -236,6 +259,7 @@ function frame(now: number) {
   atelier.render();
   field.update(dt);
   field.render();
+  placeInspector(dt);
 
   // Adaptive resolution: protect the frame rate first.
   slow = slow * 0.95 + (dt > 1 / 45 ? 1 : 0) * 0.05;

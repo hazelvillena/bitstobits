@@ -340,6 +340,13 @@ export class Field {
     }
   }
 
+  /** Screen position and radius of the hovered form, for anchoring its card. */
+  hoverAnchor(): { x: number; y: number; r: number } | null {
+    if (!this.hovered) return null;
+    const p = this.project(this.hovered.pos);
+    return { x: p.x, y: p.y, r: this.pixelRadius(this.hovered) };
+  }
+
   private pixelRadius(it: Item) {
     const a = this.project(it.pos), b = this.project(it.pos.clone().add(new Vector3(it.radius, 0, 0)));
     return Math.abs(b.x - a.x);

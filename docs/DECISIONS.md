@@ -2,6 +2,12 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-18 (rounded default, hover card)
+
+**Rounded extrusions by default.** The needle was too sharp as the everyday behaviour. The default profile (`ROUNDED`) tapers gently to a soft round tip, and pressing in makes a rounded pocket. The sharp `SPIKE` profile is kept in `sculptor.ts`. The tool is called Extrude again.
+
+**Hover is a card beside the form.** Instead of a panel in the corner, a compact card appears next to the hovered form, flips to the other side near edges and eases along as the form drifts.
+
 ## 2026-11-18 (spikes, filaments, warm gray)
 
 **Extrude becomes Spike.** Round-ended tubes read as blunt and unintended. Strokes are now tapered sweeps: round cones along a curve, from the full brush at the root to a fine tip, with a soft fillet into the body. Dragging the other way punctures a tapered hole. Profiles (`SPIKE`, `PUNCTURE` in `sculptor.ts`) are plain data, so new stroke shapes are a few numbers.

@@ -11,7 +11,7 @@ Status: working prototype. See [DECISIONS.md](DECISIONS.md) for what changed and
 2. **Calibrate** (camera): hold up an open hand for a moment. It appears as a measured diagram of 21 joints with live dimension lines.
 3. **Sculpt**: the current tool's name follows your wrist, so you always know what your hand is doing. The form answers to presence. Rings appear where a fingertip approaches; touched areas glow and cool.
 4. **Keep**: press Enter or "Keep this form". The form dissolves toward the collection.
-5. **Collection**: forms arrange by kinship. Close relatives grow thin ligaments between their nearest surfaces. Hover a form to see its traits, its relatives and the shared trait behind each attachment.
+5. **Collection**: forms arrange by kinship. Close relatives grow thin ligaments between their nearest surfaces. Hover a form for a small card beside it with its traits, its relatives and the shared trait behind each attachment.
 
 ## Tools and gestures
 
@@ -19,13 +19,13 @@ Pick a tool with keys 1 to 4 or the toolbar at the bottom of the sculpt pane. Th
 
 | Key | Tool | While pinched (or mouse held) |
 |---|---|---|
-| 1 | Spike | Drag along the surface's outward direction to draw a needle out of it; the other way punctures a tapered hole. Drag sideways to curve it. Moving back undoes, so you can find the right length. |
+| 1 | Extrude | Drag along the surface's outward direction to draw out a clean, rounded taper; the other way presses in a rounded pocket. Drag sideways to curve it. Moving back undoes, so you can find the right length. |
 | 2 | Pierce | Hold to bore slowly; move to carve a groove |
 | 3 | Smooth | Move across the surface |
 | 4 | Rotate | Drag anywhere (mouse: right drag). The form follows your hand exactly and glides briefly on release. It never turns on its own. |
 | Enter | Keep | |
 
-Both hands can draw spikes at the same time. `[` and `]` (or the size control in the toolbar) change the brush size; the surface shows its exact outline. `M` cycles the material. Every tool eases in over a third of a second and is rate-limited, so changes are small and deliberate.
+Both hands can extrude at the same time. `[` and `]` (or the size control in the toolbar) change the brush size; the surface shows its exact outline. `M` cycles the material. Every tool eases in over a third of a second and is rate-limited, so changes are small and deliberate.
 
 Other keys: `N` start over, `C` recalibrate. Drag the divider to resize the panes (double-click for an even split). `?layout=rows` stacks them for a portrait screen.
 
@@ -80,7 +80,7 @@ src/
 - [x] Keeping forms: mesh, traits, naming, storage
 - [x] Collection: kinship layout, ligaments, hover detail
 - [ ] Tune gestures with a real camera session (depth gain, pinch threshold)
-- [x] Spikes (tapered, curving) and punctures; two hands at once
+- [x] Rounded tapered extrusions (sharp spike profile available) and pockets; two hands at once
 - [ ] Twist and two-hand squeeze
 - [x] Materials: Pearl, Obsidian, Graphic, Lines
 - [ ] Export a form (glTF)

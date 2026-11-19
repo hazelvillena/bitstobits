@@ -33,7 +33,7 @@ Type scale: 10 / 11.5 / 13 / 15 / 30 px, display `clamp(44px, 5vw, 72px)` at wei
 - **Buttons**: pill shaped. Primary is solid ink; ghost is a hairline.
 - **Toolbar**: a translucent pill of tool buttons (glyph, name, key) at the bottom of the sculpt pane; the active tool is solid ink. Beside it, a brush size control: minus, a dot that grows with the size, plus. Hand gestures live in tooltips.
 - **Hand overlay**: joints as small open circles, bones as hairlines, and dimension lines with millimetre lengths during calibration. Engaged fingertips fill with signal and pulse.
-- **Inspector**: soft translucent panel with the name, form number, trait bars and relatives with their kinship percentage.
+- **Hover card**: a compact translucent card beside the hovered form (flips side near edges, follows the form) with the name, form number, trait bars and relatives with their kinship percentage.
 - **Bridges**: a flared root of each form's own matter easing into one fine filament with a slow S-curve, and a fine trait-colour band at the middle. They grow from both sides and recede when another form is in focus. Shape constants live in `BRIDGE` (`src/field/bridge.ts`).
 
 ## Materials

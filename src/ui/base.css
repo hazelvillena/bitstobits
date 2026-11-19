@@ -271,24 +271,25 @@ body.resizing canvas { pointer-events: none; }
 
 .inspector {
   position: absolute; z-index: 5;
-  left: calc(var(--margin) - 8px); top: calc(var(--margin) + 32px);
-  width: 252px;
-  padding: var(--s-4);
+  left: 0; top: 0;
+  width: 216px;
+  padding: 14px 14px 12px;
   border-radius: 14px;
-  background: rgba(236, 233, 228, 0.86);
+  background: rgba(246, 244, 240, 0.92);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 1px 0 var(--hair-soft), 0 12px 32px -18px rgba(27, 33, 39, 0.25);
+  box-shadow: 0 0 0 1px rgba(27, 33, 39, 0.06), 0 14px 34px -16px rgba(27, 33, 39, 0.35);
   display: grid; gap: var(--s-3);
   font-size: var(--t-small);
   pointer-events: none;
+  will-change: transform;
   animation: rise var(--t-med) var(--ease-out);
 }
-@keyframes rise { from { opacity: 0; transform: translateY(4px); } }
-.inspector h3 { margin: 0; font-weight: 560; font-size: 22px; line-height: 1.1; letter-spacing: -0.025em; }
+@keyframes rise { from { opacity: 0; } }
+.inspector h3 { margin: 0; font-weight: 560; font-size: 17px; line-height: 1.15; letter-spacing: -0.02em; }
 .inspector .sub { color: var(--ink-2); margin-top: -6px; }
 .inspector .bars { display: grid; gap: 7px; }
-.inspector .bar { display: grid; grid-template-columns: 80px 1fr 28px; align-items: center; gap: var(--s-2); color: var(--ink-2); }
+.inspector .bar { display: grid; grid-template-columns: 74px 1fr 26px; align-items: center; gap: var(--s-2); color: var(--ink-2); }
 .inspector .bar .track { height: 2px; background: var(--hair); border-radius: 2px; position: relative; overflow: hidden; }
 .inspector .bar .track span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; }
 .inspector .bar .v { text-align: right; font-variant-numeric: tabular-nums; }

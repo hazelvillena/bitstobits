@@ -4,7 +4,7 @@ import type { Atelier } from '../render/atelier';
 export type ToolKind = 'drill' | 'extrude' | 'smooth' | 'turn';
 
 export const TOOLS: { kind: ToolKind; name: string; hand: string; key: string }[] = [
-  { kind: 'extrude', name: 'Spike', hand: 'pinch and drag', key: '1' },
+  { kind: 'extrude', name: 'Extrude', hand: 'pinch and drag', key: '1' },
   { kind: 'drill', name: 'Pierce', hand: 'pinch and hold', key: '2' },
   { kind: 'smooth', name: 'Smooth', hand: 'pinch and move', key: '3' },
   { kind: 'turn', name: 'Rotate', hand: 'pinch and drag', key: '4' },
@@ -135,11 +135,11 @@ export class Sculptor {
     const r = this.brush;
     const { P, N, amount, lat } = st;
     const out = amount >= 0;
-    const prof = out ? SPIKE : PUNCTURE;
+    const prof = out ? ROUNDED : PUNCTURE;
     // Root below the surface so the stroke grows out of (or into) the body.
     // The tip stays hidden until the drag passes a small dead zone.
     const start = P.clone().addScaledVector(N, out ? -r * 0.9 : r * 0.4);
-    const reach = out ? amount - r * 0.3 : amount;
+    const reach = out ? amount - r * (0.3 + prof.tip * 0.5) : amount;
     const ctrl = P.clone().addScaledVector(N, reach * 0.55);
     const end = P.clone().addScaledVector(N, reach).addScaledVector(lat, out ? 1 : 0.5);
     const path = bezier(start, ctrl, end, 12);
@@ -162,8 +162,11 @@ export interface Profile {
   power: number;
   blend: number;
 }
+/** Default: a clean, rounded taper ending in a soft round tip. */
+export const ROUNDED: Profile = { tip: 0.5, power: 0.85, blend: 0.65 };
+/** A sharp needle, kept for later. */
 export const SPIKE: Profile = { tip: 0.035, power: 1.35, blend: 0.6 };
-export const PUNCTURE: Profile = { tip: 0.18, power: 1.0, blend: 0.22 };
+export const PUNCTURE: Profile = { tip: 0.55, power: 0.8, blend: 0.3 };
 
 function taper(n: number, r: number, p: Profile) {
   const radii: number[] = [];
