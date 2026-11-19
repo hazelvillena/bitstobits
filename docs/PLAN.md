@@ -8,9 +8,9 @@ Status: working prototype. See [DECISIONS.md](DECISIONS.md) for what changed and
 ## Experience
 
 1. **Start**: camera or mouse.
-2. **Calibrate** (camera): the hand appears as a measured diagram of 21 joints with live dimension lines. Hold three poses: open, fist, pinch.
+2. **Calibrate** (camera): hold up an open hand for a moment. It appears as a measured diagram of 21 joints with live dimension lines.
 3. **Sculpt**: the current tool's name follows your wrist, so you always know what your hand is doing. The form answers to presence. Rings appear where a fingertip approaches; touched areas glow and cool.
-4. **Keep**: hold a thumbs up for 1.6 s (or press "Keep this form"). The form dissolves toward the collection.
+4. **Keep**: press Enter or "Keep this form". The form dissolves toward the collection.
 5. **Collection**: forms arrange by kinship. Close relatives grow thin ligaments between their nearest surfaces. Hover a form to see its traits, its relatives and the shared trait behind each attachment.
 
 ## Tools and gestures
@@ -24,9 +24,9 @@ Pick a tool with keys 1 to 5 or by clicking it. Hands never choose the tool; the
 | 3 | Press | Touch with your index fingertip |
 | 4 | Smooth | Touch with your index fingertip |
 | 5 | Rotate | Pinch anywhere and drag (mouse: right drag) |
-| Enter | Keep | Hold a thumbs up |
+| Enter | Keep | |
 
-Other keys: `N` start over, `C` recalibrate. `?layout=rows` stacks the two panes for a portrait screen.
+Other keys: `N` start over, `C` recalibrate. Drag the divider to resize the panes (double-click for an even split). `?layout=rows` stacks them for a portrait screen.
 
 ## How it works
 

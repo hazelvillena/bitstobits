@@ -13,11 +13,14 @@ import { Field } from './field/field';
 import { createSpecimen, loadSpecimens, saveSpecimens, type Specimen } from './specimen/specimen';
 import { TRAITS } from './specimen/signature';
 import { traitHex, traitLabel } from './ui/tokens';
+import { initDivider } from './ui/divider';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
 // Layout: side by side by default; ?layout=rows stacks them for a portrait screen.
 if (new URLSearchParams(location.search).get('layout') === 'rows') $('stage').classList.add('rows');
+
+initDivider($('stage'), $('seam'));
 
 const atelierEl = $('atelier');
 const atelier = new Atelier($<HTMLCanvasElement>('atelier-canvas'));
@@ -42,7 +45,6 @@ function begin(kind: 'hands' | 'pointer') {
   $('intro').classList.add('gone');
   input = kind;
   chrome.setInputMode(kind);
-  if (kind === 'hands') $('btn-accept').textContent = 'Keep (thumbs up)';
   if (kind === 'pointer') {
     pointer.enabled = true;
     mode = 'sculpt';
@@ -114,7 +116,6 @@ async function accept() {
   saveSpecimens(specimens);
   chrome.setSpecimenNumber(specimens.length + 1);
   startOver();
-  hands.acceptHold = 0;
   setTimeout(() => (accepting = false), 900);
 }
 
@@ -196,11 +197,6 @@ function frame(now: number) {
     } else {
       tips = tips.concat(hands.update(dt).tips);
       overlay.draw(tracker.hands, 'sculpt', dt, tracker.cal.mmPerUnit, hands.activity);
-      chrome.setAcceptProgress(Math.min(1, hands.acceptHold / hands.acceptTime));
-      if (hands.acceptHold >= hands.acceptTime) {
-        chrome.setAcceptProgress(0);
-        accept();
-      }
     }
   }
   atelier.setTips(tips);

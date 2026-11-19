@@ -17,9 +17,6 @@ import type { PaneMapping } from '../ui/handOverlay';
 export class HandInput {
   enabled = false;
   tool: () => ToolKind = () => 'pull';
-  acceptHold = 0;
-  /** Seconds to hold a thumbs up before the form is kept. */
-  readonly acceptTime = 1.6;
   activity = new Map<HandFrame, { tool: string; engaged: boolean; label: string }>();
   private lastPinch = new Map<boolean, { x: number; y: number }>();
   private prevTip = new Map<boolean, Vector3>();
@@ -65,21 +62,11 @@ export class HandInput {
     const tool = this.tool();
     const label = TOOLS.find((t) => t.kind === tool)!.name;
 
-    // Keep: a deliberate thumbs up, held. Any other pose resets it.
-    const thumbs = hands.some((h) => h.pose === 'thumb');
-    this.acceptHold = thumbs ? this.acceptHold + dt : 0;
-
     for (const h of hands) {
       const key = h.right;
       const idx = this.world(h, 8, new Vector3());
       const pinch = this.isPinching(h);
       let engaged = false;
-
-      if (h.pose === 'thumb') {
-        this.activity.set(h, { tool: 'keep', engaged: true, label: 'Keep' });
-        this.release(key);
-        continue;
-      }
 
       if (tool === 'drill' || tool === 'press' || tool === 'smooth') {
         tips.push({ pos: idx, strength: 0.9 });
@@ -119,9 +106,4 @@ export class HandInput {
     return { tips };
   }
 
-  private release(key: boolean) {
-    this.sculptor.pull(String(key), new Vector3(), false);
-    this.prevTip.delete(key);
-    this.lastPinch.delete(key);
-  }
 }

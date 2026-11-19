@@ -77,7 +77,10 @@ export class Field {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    const hh = Math.tan((this.camera.fov * Math.PI) / 360) * this.camera.position.z;
+    // Pull back in narrow panes so the field always has room to breathe.
+    const tanHalf = Math.tan((this.camera.fov * Math.PI) / 360);
+    this.camera.position.z = Math.max(16, 2.3 / (tanHalf * (w / h)));
+    const hh = tanHalf * this.camera.position.z;
     this.half = { w: hh * (w / h), h: hh };
   }
 

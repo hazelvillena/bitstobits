@@ -48,7 +48,7 @@ export class HandFilter {
   }
 }
 
-export type Pose = 'open' | 'fist' | 'pinch' | 'point' | 'two' | 'thumb' | 'none';
+export type Pose = 'open' | 'fist' | 'pinch' | 'point' | 'two' | 'none';
 
 export interface HandFrame {
   lm: Float32Array; // 21 × xyz, normalized image coords (x not mirrored)
@@ -106,12 +106,8 @@ export function readPose(lm: Float32Array, cal: Calibration): { pose: Pose; span
   const lit = ext([17, 18, 19, 20]);
   const othersCurled = curled([9, 10, 11, 12]) && curled([13, 14, 15, 16]) && curled([17, 18, 19, 20]);
 
-  const thumbOut = dist(lm, 4, 5, a) / span > 0.55 && bend(lm, [1, 2, 3, 4], a) < 0.9;
-  const thumbUp = thumbOut && lm[4 * 3 + 1] < lm[3 * 3 + 1] && lm[3 * 3 + 1] < lm[5 * 3 + 1];
-
   let pose: Pose = 'none';
   if (pinchRatio < cal.pinchOn) pose = 'pinch';
-  else if (thumbUp && curled([5, 6, 7, 8]) && othersCurled) pose = 'thumb';
   else if (idx && mid && ring && lit) pose = 'open';
   else if (idx && mid && !ring && !lit) pose = 'two';
   else if (idx && othersCurled) pose = 'point';

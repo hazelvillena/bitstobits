@@ -30,10 +30,27 @@ button { font: inherit; color: inherit; }
   position: fixed;
   inset: 0;
   display: grid;
-  grid-template-columns: 1fr 1px 1fr;
+  --split: 50%;
+  grid-template-columns: minmax(0, var(--split)) 1px minmax(0, 1fr);
 }
-.stage.rows { grid-template-columns: 1fr; grid-template-rows: 1fr 1px 1fr; }
-.seam { background: var(--hair); position: relative; z-index: 3; }
+.stage.rows { grid-template-columns: 1fr; grid-template-rows: minmax(0, var(--split)) 1px minmax(0, 1fr); }
+
+/* Divider: a hairline with a wide, invisible grip */
+.seam { background: var(--hair); position: relative; z-index: 8; transition: background var(--t-fast); }
+.seam::before { content: ''; position: absolute; inset: 0 -7px; cursor: col-resize; }
+.stage.rows .seam::before { inset: -7px 0; cursor: row-resize; }
+.seam::after {
+  content: ''; position: absolute; left: 50%; top: 50%;
+  width: 4px; height: 36px; margin: -18px 0 0 -2px;
+  border-radius: 4px; background: var(--ink-3);
+  opacity: 0; transition: opacity var(--t-fast);
+}
+.stage.rows .seam::after { width: 36px; height: 4px; margin: -2px 0 0 -18px; }
+.seam:hover, .seam.dragging { background: var(--ink-3); }
+.seam:hover::after, .seam.dragging::after { opacity: 1; }
+body.resizing { cursor: col-resize; user-select: none; }
+body.resizing.rows-resize { cursor: row-resize; }
+body.resizing canvas { pointer-events: none; }
 .pane { position: relative; overflow: hidden; min-width: 0; min-height: 0; }
 
 .atelier {

@@ -2,6 +2,14 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-18 (simpler onboarding)
+
+**Calibration is a single step.** With tools on keys, the fist and pinch poses had no purpose. Calibration now measures one open hand; the pinch threshold is derived from that hand's own spread.
+
+**No thumbs up.** Keep is Enter or the button. Pinch remains only as the grab for Pull and Rotate.
+
+**Draggable divider.** The line between the panes can be dragged (20 to 80 percent), is remembered, and double-click resets it. The collection camera pulls back in narrow panes so forms keep their spacing.
+
 ## 2026-11-18 (tool selection)
 
 **Tools are chosen explicitly, not guessed from hand shape.** Reading the tool from the hand's pose was unreliable: a relaxed, half-curled hand read as a fist, which meant Rotate, so the form kept spinning. Now the person selects a tool with keys 1 to 5 or the tool list. Hands only aim and act. Pierce, Press and Smooth work where the index fingertip touches the form. Pull and Rotate work only while pinching, which acts as a clutch with hysteresis so a grab doesn't drop when fingers flutter. Pose reading is now used only for the thumbs up (keep) and calibration.
