@@ -14,6 +14,7 @@ import { codeOf, createSpecimen, loadSpecimens, saveSpecimens, type Specimen } f
 import { traitLabel } from './ui/tokens';
 import { radarSVG } from './ui/radar';
 import { Thumbnailer } from './field/thumbs';
+import { Tour } from './ui/tour';
 import { initDivider } from './ui/divider';
 import { DEFAULT_MATERIAL, MATERIALS, preset, swatch } from './render/materials';
 import { Dropdown } from './ui/dropdown';
@@ -36,6 +37,25 @@ const tracker = new HandTracker($<HTMLVideoElement>('camera'));
 const hands = new HandInput(tracker, atelier, sculptor, overlay.map);
 const calibration = new Calibration(tracker);
 const field = new Field($<HTMLCanvasElement>('field-canvas'), $('field-labels'));
+
+// A short tour of the essentials after choosing how to sculpt.
+const tour = new Tour([
+  {
+    target: () => document.querySelector('.tool-group'),
+    title: 'Tools',
+    text: 'Pick one here or press 1 to 5. Extrude, Spike and Press shape a face; Pierce bores through; Rotate turns the form.',
+  },
+  {
+    target: () => document.querySelector('.size-group'),
+    title: 'Brush size',
+    text: 'Type a number, or use minus and plus. The outline on the form shows exactly what you will touch.',
+  },
+  {
+    target: () => $('btn-accept'),
+    title: 'When you are done',
+    text: 'Keep the form. It joins the collection and connects to the forms most like it.',
+  },
+]);
 
 let specimens: Specimen[] = [];
 let mode: 'intro' | 'calibrate' | 'sculpt' = 'intro';
@@ -73,6 +93,7 @@ function begin(kind: 'hands' | 'pointer') {
     pointer.enabled = true;
     mode = 'sculpt';
     chrome.setActive(pointer.tool);
+    setTimeout(() => tour.start(), 700);
   }
 }
 
@@ -103,11 +124,13 @@ $('btn-calibrate').addEventListener('click', async () => {
   }
 });
 
-calibration.onDone = () => {
+// After the pinch step, hands start sculpting for one practice pull.
+calibration.onPractice = () => {
   mode = 'sculpt';
   hands.enabled = true;
   pointer.setTool('extrude');
 };
+calibration.onDone = () => tour.start();
 // Hands act with whichever tool is selected; they never pick it themselves.
 hands.tool = () => pointer.tool;
 
@@ -116,10 +139,10 @@ chrome.onToolClick((t) => pointer.setTool(t));
 chrome.onBrush = (dir) => sculptor.setBrush(dir > 0 ? sculptor.brush / 0.85 : sculptor.brush * 0.85);
 chrome.onBrushValue = (size) => sculptor.setBrush(size / 100);
 
-const KEYS: Record<string, ToolKind> = { '1': 'extrude', '2': 'spike', '3': 'drill', '4': 'smooth', '5': 'turn' };
+const KEYS: Record<string, ToolKind> = { '1': 'extrude', '2': 'spike', '3': 'press', '4': 'drill', '5': 'turn' };
 window.addEventListener('keydown', (e) => {
   // Typing in a field never triggers shortcuts.
-  if ((e.target as HTMLElement).closest('input, textarea')) return;
+  if (e.target instanceof Element && e.target.closest('input, textarea')) return;
   if (KEYS[e.key] && mode === 'sculpt') pointer.setTool(KEYS[e.key]);
   if (e.key === 'Enter' && mode === 'sculpt') accept();
   if (e.key === 'm' || e.key === 'M') {
@@ -284,11 +307,19 @@ function frame(now: number) {
 
   let tips = pointer.update(dt);
   if (input === 'hands' && tracker.ready) {
+    // The calibration card sits beside the first hand and follows it.
+    const h0 = tracker.hands[0];
+    const anchor = h0 ? { x: overlay.map.x((h0.lm[0] + h0.lm[27]) / 2), y: overlay.map.y((h0.lm[1] + h0.lm[28]) / 2) } : null;
+    const pane = { w: atelierEl.clientWidth, h: atelierEl.clientHeight };
     if (mode === 'calibrate') {
-      calibration.update(dt);
+      calibration.update(dt, anchor, pane);
       overlay.draw(tracker.hands, 'calibrate', dt, tracker.cal.mmPerUnit);
     } else {
       tips = tips.concat(hands.update(dt).tips);
+      if (calibration.active) {
+        calibration.update(dt, anchor, pane);
+        calibration.practiceProgress(dt, [...hands.activity.values()].some((a) => a.engaged && a.tool === 'extrude'));
+      }
       overlay.draw(tracker.hands, 'sculpt', dt, tracker.cal.mmPerUnit, hands.activity);
     }
   }

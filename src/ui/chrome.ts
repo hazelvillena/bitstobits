@@ -6,8 +6,8 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 const GLYPHS: Record<ToolKind, string> = {
   extrude: '<path d="M3 13 H19"/><path d="M7.5 13 C8 7.5 9 4 11 3.6 C13 4 14 7.5 14.5 13"/>',
   spike: '<path d="M3 13 H19"/><path d="M8 13 L11 1.5 L14 13"/>',
+  press: '<path d="M3 5 H7 C8 5 8 11 11 11 C14 11 14 5 15 5 H19"/><path d="M11 1.5 V7"/><path d="M9 5 L11 7 L13 5"/>',
   drill: '<circle cx="11" cy="8" r="5.5"/><circle cx="11" cy="8" r="1.6"/>',
-  smooth: '<path d="M3 10 C6 6 8 14 11 10 S16 6 19 10"/>',
   turn: '<path d="M5 9 A6 6 0 1 0 11 3"/><path d="M11 1 L13 3 L11 5"/>',
 };
 

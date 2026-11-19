@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import type { Atelier } from '../render/atelier';
-import { ROUNDED, SPIKE, type Sculptor, type ToolKind } from '../sculpt/sculptor';
+import { isStroke, type Sculptor, type ToolKind } from '../sculpt/sculptor';
 
 /**
  * Pointer input: a precise path for testing and a full fallback when no
@@ -35,14 +35,14 @@ export class PointerInput {
       this.setPos(e);
       this.startX = this.lastX = this.x;
       this.startY = this.lastY = this.y;
-      if (!this.turning && (this.tool === 'extrude' || this.tool === 'spike')) {
+      if (!this.turning && isStroke(this.tool)) {
         const hit = this.atelier.castSurface(this.x, this.y);
-        this.extruding = !!hit && this.sculptor.beginExtrude('pointer', hit, this.tool === 'spike' ? SPIKE : ROUNDED);
+        this.extruding = !!hit && this.sculptor.beginStroke('pointer', hit, this.tool);
       }
     });
     el.addEventListener('pointermove', (e) => this.setPos(e));
     const up = () => {
-      if (this.extruding) this.sculptor.endExtrude('pointer');
+      if (this.extruding) this.sculptor.endStroke('pointer');
       this.extruding = false;
       this.down = false;
       this.turning = false;
@@ -87,13 +87,14 @@ export class PointerInput {
       return [];
     }
     if (this.extruding) {
-      this.sculptor.dragExtrude('pointer', this.x - this.startX, this.y - this.startY, dt);
-      return this.cast() ? [{ pos: this.hit.clone(), strength: 1 }] : [];
+      this.sculptor.dragStroke('pointer', this.x - this.startX, this.y - this.startY, dt);
+      // The outline marks the grabbed face itself, wherever it has moved.
+      const at = this.sculptor.strokeMarker('pointer');
+      return at ? [{ pos: at, strength: 1 }] : [];
     }
     if (!this.hover || !this.cast()) return [];
     if (this.down) {
       if (this.tool === 'drill') this.sculptor.drill(this.hit, this.d, dt, ease);
-      else if (this.tool === 'smooth') this.sculptor.smooth(this.hit, dt, ease);
     }
     return [{ pos: this.hit.clone(), strength: this.down ? 1 : 0.5 }];
   }

@@ -2,6 +2,22 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-18 (pinch, calibration, Press, tour, silver)
+
+**Pinch is measured in 3D.** One finger could extrude because the pinch was the on-screen thumb to index distance, which looks small when pointing. Now the worker sends the 3D distance from MediaPipe's world landmarks (metres). A pinch starts after 80 ms below a calibrated start distance and releases past a wider one, following Meta's start and stop thresholds and Ultraleap's hysteresis guidance.
+
+**Calibration follows the hand.** A small card beside the hand: open hand (palm size and resting spread), pinch (your own pinch distance, setting start and release), then one practice pull on the form. The ring's centre dot turns lime the moment the hand is seen.
+
+**Smooth removed, Press added.** Smooth barely changed the shape. Press sinks the grabbed face into a soft, flat pocket whose depth follows the drag; the form holds still.
+
+**The outline marks the grabbed face.** It moved with the aim point, so after the form turned it sat on the wrong face. It now tracks the stroke itself: the tip of an extrusion, the floor of a pocket.
+
+**Tour.** Three highlighted tips after choosing how to sculpt (after calibration with hands): tools, brush size, keeping a form.
+
+**Silver grey.** Both grounds are silver grey with a soft, seamless vignette of the same grey; the collection is a touch deeper.
+
+**Fixes.** Shortcut guard no longer throws for window-level key events; the toolbar collapses to icons in narrower panes.
+
 ## 2026-11-18 (connections join the body)
 
 **Connections start at the body, not at spike tips.** Anchors used the surface points reaching furthest toward the other form; on spiky forms those were spike tips, or an average of several tips floating in empty space. Now each end sits on the line between the two forms' centres, at the body's own surface: among surface points in a narrow cone around that line, a low-percentile distance from the centre, which ignores spikes reaching past the body and openings dipping into it. The flared root sits inside the body, so every connection grows out of its form.

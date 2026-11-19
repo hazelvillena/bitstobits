@@ -54,7 +54,11 @@ self.onmessage = async (e: MessageEvent) => {
         arr[j * 3 + 2] = lm[j].z;
       }
       const label = res.handedness[i]?.[0]?.categoryName ?? 'Right';
-      return { lm: arr, right: label === 'Right' };
+      // Thumb to index tip in metres, from the 3D world landmarks: unlike the
+      // on-screen distance it does not shrink when the hand turns or points.
+      const w = res.worldLandmarks[i];
+      const pinch = w ? Math.hypot(w[4].x - w[8].x, w[4].y - w[8].y, w[4].z - w[8].z) : 1;
+      return { lm: arr, right: label === 'Right', pinch };
     });
     self.postMessage({ type: 'result', hands, t: msg.t }, { transfer: hands.map((h) => h.lm.buffer) });
   }

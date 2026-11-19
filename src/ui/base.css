@@ -53,16 +53,19 @@ body.resizing.rows-resize { cursor: row-resize; }
 body.resizing canvas { pointer-events: none; }
 .pane { position: relative; overflow: hidden; min-width: 0; min-height: 0; container-type: size; }
 
+/* Silver grey grounds with a soft, seamless vignette of the same grey */
 .atelier {
   background:
-    radial-gradient(110% 70% at 50% 40%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0) 62%),
-    linear-gradient(180deg, var(--mist-0) 0%, var(--mist-1) 100%);
+    radial-gradient(120% 95% at 50% 42%, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 55%, rgba(120, 126, 134, 0.16) 100%),
+    var(--silver);
 }
 .field {
   background-color: var(--field);
-  background-image: radial-gradient(rgba(27, 33, 39, 0.12) 0.8px, transparent 1.2px);
-  background-size: 28px 28px;
-  background-position: center;
+  background-image:
+    radial-gradient(130% 100% at 50% 45%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 50%, rgba(110, 116, 124, 0.16) 100%),
+    radial-gradient(rgba(27, 33, 39, 0.1) 0.8px, transparent 1.2px);
+  background-size: 100% 100%, 28px 28px;
+  background-position: center, center;
 }
 
 .gl, .overlay2d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -146,7 +149,7 @@ body.resizing canvas { pointer-events: none; }
   .pane-foot { flex-direction: column; align-items: flex-start; gap: var(--s-3); }
   .pane-foot .actions-row { align-self: stretch; justify-content: flex-end; }
 }
-@container (max-width: 470px) {
+@container (max-width: 660px) {
   .tool span { display: none; }
   .tool { padding: 0 10px; }
 }
@@ -255,7 +258,7 @@ body.resizing canvas { pointer-events: none; }
   position: fixed; inset: 0; z-index: 50;
   display: grid; place-items: center;
   padding: var(--margin);
-  background: rgba(220, 216, 209, 0.38);
+  background: rgba(208, 212, 217, 0.4);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   transition: opacity var(--t-slow) var(--ease-soft), visibility 0s linear var(--t-slow);
@@ -297,38 +300,30 @@ body.resizing canvas { pointer-events: none; }
   color: var(--ink-2);
 }
 
-/* Calibration */
-.calibration {
-  position: absolute; inset: 0; z-index: 5; pointer-events: none;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  padding: calc(var(--margin) + 48px) var(--margin) calc(var(--margin) + 56px);
-}
-.calib-head { display: grid; gap: var(--s-2); max-width: 420px; }
-.calib-title { margin: 0; font-weight: 520; font-size: 22px; line-height: 1.15; letter-spacing: -0.025em; }
-.calib-sub { margin: 0; }
-.calib-title.swap, .calib-sub.swap { animation: step-in var(--t-slow) var(--ease-out); }
-.calibration { animation: fade-in var(--t-slow) var(--ease-out); transition: opacity 600ms var(--ease-soft); }
+/* Calibration: one small card that sits beside the hand and follows it */
+.calibration { position: absolute; inset: 0; z-index: 5; pointer-events: none; animation: fade-in var(--t-slow) var(--ease-out); transition: opacity 600ms var(--ease-soft); }
 .calibration.leaving { opacity: 0; }
-.poses { grid-row: 3; list-style: none; margin: 0; padding: 0; display: flex; gap: var(--s-5); }
-.poses li { display: grid; justify-items: center; gap: var(--s-2); color: var(--ink-3); font-size: var(--t-small); transition: color var(--t-med); }
-.poses li.current, .poses li.done { color: var(--ink); }
-.pose-dial { position: relative; width: 56px; height: 56px; }
-.pose-dial svg { position: absolute; inset: 0; }
-.pose-dial .ring-track { fill: none; stroke: var(--hair); stroke-width: 1; }
-.pose-dial .ring-fill { fill: none; stroke: var(--signal); stroke-width: 1.5; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
-.pose-dial .pose-glyph { stroke: currentColor; fill: none; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; }
-.poses li.done .ring-fill { stroke: var(--ink); }
-
-.signature {
-  position: absolute; right: var(--margin); bottom: calc(var(--margin) + 56px);
-  width: 210px;
-  display: grid; gap: 6px;
-  font-size: var(--t-small);
+.calib-card {
+  position: absolute; left: 0; top: 0;
+  width: 264px;
+  padding: 16px 18px 16px 16px;
+  display: grid; grid-template-columns: 44px 1fr; gap: 14px; align-items: start;
+  will-change: transform;
+  animation: pop-in var(--t-slow) var(--ease-spring);
 }
-.signature h3 { margin: 0 0 var(--s-1); font-weight: 560; font-size: var(--t-lead); letter-spacing: -0.01em; }
-.signature .row { display: flex; justify-content: space-between; border-top: 1px solid var(--hair); padding-top: 6px; color: var(--ink-2); }
-.signature .row b { font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+.calib-dial { width: 44px; height: 44px; }
+.calib-dial .ring-track { fill: none; stroke: var(--hair); stroke-width: 1.5; }
+.calib-dial .ring-fill { fill: none; stroke: var(--signal); stroke-width: 2; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
+.calib-dial .ring-dot { fill: var(--ink-3); transition: fill var(--t-med) var(--ease-out), r var(--t-med) var(--ease-spring); }
+.calib-card.seen .ring-dot { fill: var(--signal); }
+.calib-text { display: grid; gap: 4px; }
+.calib-title { margin: 0; font-weight: 560; font-size: 15px; line-height: 1.25; letter-spacing: -0.015em; }
+.calib-sub { margin: 0; color: var(--ink-2); font-size: var(--t-small); line-height: 1.45; }
+.calib-title.swap, .calib-sub.swap { animation: step-in var(--t-slow) var(--ease-out); }
+.step-dots { display: flex; gap: 5px; margin-top: 8px; }
+.step-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--hair); transition: background var(--t-med) var(--ease-out), width var(--t-med) var(--ease-spring); }
+.step-dots i.current { width: 14px; border-radius: 3px; background: var(--ink-2); }
+.step-dots i.done { background: var(--signal); }
 
 /* Keep ring */
 .accept-ring {
@@ -437,3 +432,27 @@ body.resizing canvas { pointer-events: none; }
 .card .code { white-space: nowrap; }
 .card .code { font-weight: 560; font-variant-numeric: tabular-nums; }
 .card .mat { color: var(--ink-3); font-size: var(--t-small); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Tour: a soft highlight and a small popover */
+.tour-ring {
+  position: fixed; z-index: 60; pointer-events: none;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1.5px var(--signal), 0 0 0 7px var(--signal-soft), 0 0 0 9999px rgba(27, 33, 39, 0.08);
+  transition: left var(--t-med) var(--ease-spring), top var(--t-med) var(--ease-spring), width var(--t-med) var(--ease-spring), height var(--t-med) var(--ease-spring), opacity var(--t-med);
+  animation: fade-in var(--t-med) var(--ease-out);
+}
+.tour-card {
+  position: fixed; left: 0; top: 0; z-index: 61;
+  width: 280px;
+  padding: 18px 18px 14px;
+  display: grid; gap: 14px;
+  transition: transform var(--t-med) var(--ease-spring), opacity var(--t-med);
+}
+.tour-card.enter .tour-body { animation: step-in var(--t-med) var(--ease-out); }
+.tour-ring.leaving, .tour-card.leaving { opacity: 0; }
+.tour-body { display: grid; gap: 6px; }
+.tour-body h3 { margin: 0; font-weight: 560; font-size: 15px; letter-spacing: -0.015em; }
+.tour-body p { margin: 0; color: var(--ink-2); font-size: var(--t-small); line-height: 1.5; }
+.tour-foot { display: flex; justify-content: space-between; align-items: center; }
+.tour-foot .step-dots { margin: 0; }
+.tour-actions { display: flex; gap: 6px; }

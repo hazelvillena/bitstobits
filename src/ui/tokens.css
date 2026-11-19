@@ -8,7 +8,8 @@
   --mist-1: #d3d9de;      /* atelier bottom */
   --plate: #f3f1ec;       /* field paper */
   --plate-deep: #ebe8e1;
-  --field: #dcd8d1;       /* collection ground: warm gray */
+  --silver: #dfe2e5;      /* sculpt ground: silver grey */
+  --field: #d6d9dd;       /* collection ground: a slightly deeper silver */
 
   /* Ink */
   --ink: #1b2127;

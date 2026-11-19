@@ -14,7 +14,7 @@ export class HandTracker {
 
   private worker: Worker | null = null;
   private busy = false;
-  private filters = new Map<string, { f: HandFilter; d: PoseDebounce; seen: number }>();
+  private filters = new Map<string, { f: HandFilter; d: PoseDebounce; seen: number; pinch: number }>();
   private lastT = 0;
 
   constructor(private video: HTMLVideoElement) {
@@ -72,7 +72,7 @@ export class HandTracker {
     next();
   };
 
-  private onResult(data: { type: string; hands: { lm: Float32Array; right: boolean }[]; t: number }) {
+  private onResult(data: { type: string; hands: { lm: Float32Array; right: boolean; pinch: number }[]; t: number }) {
     if (data.type !== 'result') return;
     this.busy = false;
     const dt = this.lastT ? Math.max(1 / 120, (data.t - this.lastT) / 1000) : 1 / 30;
@@ -91,13 +91,14 @@ export class HandTracker {
       const key = h.right ? 'R' : 'L';
       let slot = this.filters.get(key);
       if (!slot || now - slot.seen > 400) {
-        slot = { f: new HandFilter(), d: new PoseDebounce(3), seen: now };
+        slot = { f: new HandFilter(), d: new PoseDebounce(3), seen: now, pinch: h.pinch };
         this.filters.set(key, slot);
       }
       slot.seen = now;
       const lm = slot.f.apply(h.lm, dt);
       const r = readPose(lm, this.cal);
-      out.push({ lm, right: h.right, pose: slot.d.push(r.pose), span: r.span, pinchRatio: r.pinchRatio });
+      slot.pinch += (h.pinch - slot.pinch) * 0.6; // light smoothing; hysteresis does the rest
+      out.push({ lm, right: h.right, pose: slot.d.push(r.pose), span: r.span, pinchRatio: r.pinchRatio, pinchDist: slot.pinch });
     }
     this.hands = out;
   }

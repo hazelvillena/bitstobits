@@ -19,7 +19,8 @@ Defined in `src/ui/tokens.css`, mirrored for shaders in `src/ui/tokens.ts`.
 |---|---|
 | `--mist-0 / --mist-1` | Sculpt pane ground, soft vertical gradient |
 | `--plate` | Paper for panels and button text |
-| `--field` | Collection ground: warm gray with a faint dot lattice |
+| `--silver` | Sculpt ground: silver grey with a soft, seamless vignette of the same grey |
+| `--field` | Collection ground: a slightly deeper silver, dot lattice and vignette |
 | `--ink`, `--ink-2`, `--ink-3` | Text and lines, three strengths |
 | `--hair` | 1 px rules and borders |
 | `--rose`, `--magenta`, `--ultramarine` | Contour ramp: flat, hollow, ridge |
@@ -32,6 +33,8 @@ Type scale: 10 / 11.5 / 13 / 15 / 30 px, display `clamp(44px, 5vw, 72px)` at wei
 
 - **Buttons**: sleek pills, 30 px tall with 18 px side padding (36 px and 26 px for the large variant). Primary is solid ink; ghost is a hairline. They press down 1 px.
 - **Welcome**: a small popover over a soft blur: the lime polyhedron mark, the name, two sentences and Start; then two choice cards with Lucide line icons (camera, mouse pointer).
+- **Calibration card**: a popover beside the hand that eases after it: a progress ring whose centre dot turns lime when the hand is seen, a title, one line, and three step dots.
+- **Tour**: a lime ring hugging the highlighted control over a barely-there dim, and a popover with title, one or two lines, step dots, Skip and Next.
 - **Count marker**: the number of kept forms in a small soft pill, no label.
 - **View switch**: two Lucide icons (network, grid) with a sliding ink pill.
 - **Grid cards**: a still render of each form, its code and material; cards rise in with a short stagger.

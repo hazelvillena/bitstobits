@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import type { Atelier } from '../render/atelier';
-import { ROUNDED, SPIKE, TOOLS, type Sculptor, type ToolKind } from '../sculpt/sculptor';
+import { isStroke, TOOLS, type Sculptor, type ToolKind } from '../sculpt/sculptor';
 import type { HandFrame } from './handModel';
 import type { HandTracker } from './handTracker';
 import type { PaneMapping } from '../ui/handOverlay';
@@ -42,7 +42,7 @@ export class HandInput {
   tool: () => ToolKind = () => 'extrude';
   activity = new Map<HandFrame, HandActivity>();
 
-  private pinching = new Map<boolean, boolean>();
+  private pinching = new Map<boolean, { on: boolean; t: number }>();
   private grabs = new Map<boolean, Grab>();
   private aim = new Map<boolean, { x: number; y: number }>();
 
@@ -57,15 +57,25 @@ export class HandInput {
     return { x: this.map.x(h.lm[i * 3]), y: this.map.y(h.lm[i * 3 + 1]) };
   }
 
-  /** Pinch with hysteresis, so a grab doesn't drop when fingers flutter. */
-  private pinchState(h: HandFrame) {
-    const on = this.tracker.cal.pinchOn;
-    const open = on / 0.28; // calibration sets pinchOn ≈ 0.28 × open spread
-    const was = this.pinching.get(h.right) ?? false;
-    const now = was ? h.pinchRatio < on * 1.45 : h.pinchRatio < on;
-    this.pinching.set(h.right, now);
-    const amount = Math.min(1, Math.max(0, (open - h.pinchRatio) / (open - on)));
-    return { now, started: now && !was, amount };
+  /**
+   * Pinch, measured in 3D (metres) so pointing never reads as pinching.
+   * Starts only after the fingers have stayed closed for 80 ms, releases
+   * past a wider distance (hysteresis), using this hand's calibration.
+   */
+  private pinchState(h: HandFrame, dt: number) {
+    const { pinchStart, pinchRelease, pinchOpen } = this.tracker.cal;
+    const st = this.pinching.get(h.right) ?? { on: false, t: 0 };
+    const was = st.on;
+    const d = h.pinchDist;
+    if (st.on) {
+      if (d > pinchRelease) st.on = false;
+    } else {
+      st.t = d < pinchStart ? st.t + dt : 0;
+      if (st.t >= 0.08) st.on = true;
+    }
+    this.pinching.set(h.right, st);
+    const amount = Math.min(1, Math.max(0, (pinchOpen - d) / (pinchOpen - pinchStart)));
+    return { now: st.on, started: st.on && !was, amount };
   }
 
   /** Per frame. Returns surface markers for the shader. */
@@ -79,7 +89,7 @@ export class HandInput {
     for (const h of this.tracker.hands) {
       const key = h.right;
       seen.add(key);
-      const pinch = this.pinchState(h);
+      const pinch = this.pinchState(h, dt);
       const tip = this.screen(h, 8);
       const mid = { x: (tip.x + this.screen(h, 4).x) / 2, y: (tip.y + this.screen(h, 4).y) / 2 };
 
@@ -101,8 +111,7 @@ export class HandInput {
             held: 0,
           };
           this.grabs.set(key, grab);
-          const shaping = selected === 'extrude' || selected === 'spike';
-          if (shaping && hit && !this.sculptor.beginExtrude(String(key), hit, selected === 'spike' ? SPIKE : ROUNDED)) {
+          if (isStroke(selected) && hit && !this.sculptor.beginStroke(String(key), hit, selected)) {
             this.grabs.delete(key);
             grab = undefined;
           }
@@ -125,17 +134,17 @@ export class HandInput {
           if (Math.hypot(mx, my) < 1.2) mx = my = 0;
           if (mx || my) this.atelier.rotateBy(mx * 0.0028, my * 0.0028);
           engaged = true;
-        } else if (grab.tool === 'extrude' || grab.tool === 'spike') {
-          engaged = this.sculptor.dragExtrude(String(key), dx, dy, dt);
-          const hit = this.atelier.castSurface(grab.aimX, grab.aimY);
-          if (hit) tips.push({ pos: hit.point, strength: 1 });
+        } else if (isStroke(grab.tool)) {
+          engaged = this.sculptor.dragStroke(String(key), dx, dy, dt);
+          // The outline marks the grabbed face itself, wherever it has moved.
+          const at = this.sculptor.strokeMarker(String(key));
+          if (at) tips.push({ pos: at, strength: 1 });
           onForm = true;
         } else {
           const hit = this.atelier.castSurface(grab.aimX + dx, grab.aimY + dy);
           if (hit) {
             onForm = true;
-            if (grab.tool === 'drill') engaged = this.sculptor.drill(hit.point, hit.dir, dt, ease);
-            else engaged = this.sculptor.smooth(hit.point, dt, ease);
+            engaged = this.sculptor.drill(hit.point, hit.dir, dt, ease);
             tips.push({ pos: hit.point, strength: 1 });
           }
         }
@@ -165,7 +174,7 @@ export class HandInput {
   }
 
   private end(key: boolean, grab: Grab) {
-    if (grab.tool === 'extrude' || grab.tool === 'spike') this.sculptor.endExtrude(String(key));
+    if (isStroke(grab.tool)) this.sculptor.endStroke(String(key));
     this.grabs.delete(key);
     this.pinching.delete(key);
   }

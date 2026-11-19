@@ -44,12 +44,18 @@
         <div class="status" id="status" hidden></div>
 
         <div class="calibration" id="calibration" hidden>
-          <div class="calib-head">
-            <h2 class="calib-title" id="calib-title">Show your open hand</h2>
-            <p class="calib-sub dim" id="calib-sub">About an arm's length from the screen.</p>
+          <div class="calib-card popover" id="calib-card" role="status" aria-live="polite">
+            <svg class="calib-dial" viewBox="0 0 44 44" aria-hidden="true">
+              <circle class="ring-track" cx="22" cy="22" r="19" />
+              <circle class="ring-fill" cx="22" cy="22" r="19" stroke-dasharray="119.4" stroke-dashoffset="119.4" />
+              <circle class="ring-dot" cx="22" cy="22" r="3.5" />
+            </svg>
+            <div class="calib-text">
+              <h2 class="calib-title" id="calib-title">Hold up your open hand</h2>
+              <p class="calib-sub" id="calib-sub">Palm toward the screen, about an arm away.</p>
+              <div class="step-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+            </div>
           </div>
-          <ol class="poses" id="poses"></ol>
-          <div class="signature" id="hand-signature" hidden></div>
         </div>
       </section>
 

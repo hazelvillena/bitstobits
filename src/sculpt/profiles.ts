@@ -22,3 +22,6 @@ export function taper(n: number, r: number, p: Profile) {
   return radii;
 }
 
+
+/** Press: a soft, flat-bottomed pocket that keeps nearly the brush width. */
+export const POCKET: Profile = { tip: 0.82, power: 0.6, blend: 0.32 };

@@ -56,6 +56,8 @@ export interface HandFrame {
   pose: Pose;
   span: number; // palm size in image units (aspect corrected)
   pinchRatio: number;
+  /** Thumb tip to index tip in metres (3D), smoothed. */
+  pinchDist: number;
 }
 
 export interface Calibration {
@@ -63,9 +65,18 @@ export interface Calibration {
   pinchOn: number; // ratio below which a pinch is read
   aspect: number; // camera width / height
   mmPerUnit: number;
+  /** 3D pinch thresholds in metres: start below `pinchStart`, release above `pinchRelease`. */
+  pinchStart: number;
+  pinchRelease: number;
+  /** Thumb to index distance with the hand open, in metres. */
+  pinchOpen: number;
 }
 
-export const DEFAULT_CAL: Calibration = { span: 0.2, pinchOn: 0.32, aspect: 4 / 3, mmPerUnit: 420 };
+// Pinch defaults follow Meta's hand tracking guidance: start near 1.6 to 2.5 cm, release near 3 to 4.5 cm.
+export const DEFAULT_CAL: Calibration = {
+  span: 0.2, pinchOn: 0.32, aspect: 4 / 3, mmPerUnit: 420,
+  pinchStart: 0.025, pinchRelease: 0.042, pinchOpen: 0.09,
+};
 
 const P = (lm: Float32Array, i: number, aspect: number) => [lm[i * 3] * aspect, lm[i * 3 + 1], lm[i * 3 + 2] * aspect];
 export function dist(lm: Float32Array, a: number, b: number, aspect: number) {
