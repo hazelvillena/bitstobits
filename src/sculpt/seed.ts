@@ -54,16 +54,22 @@ function sdRoundBox(x: number, y: number, z: number, b: number, r: number) {
   return Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - r;
 }
 
-/** A flat diamond: a rhombus (half diagonals bx, by) extruded to half-thickness h, rounded by r. */
-function sdDiamond(x: number, y: number, z: number, bx: number, by: number, h: number, r: number) {
-  bx -= r; by -= r; h -= r;
-  const px = Math.abs(x), py = Math.abs(y);
-  const ndot = (bx - 2 * px) * bx - (by - 2 * py) * by;
-  const t = Math.min(1, Math.max(-1, ndot / (bx * bx + by * by)));
-  const dx = px - 0.5 * bx * (1 - t), dy = py - 0.5 * by * (1 + t);
-  const d2 = Math.hypot(dx, dy) * Math.sign(px * by + py * bx - bx * by);
-  const wz = Math.abs(z) - h;
-  return Math.min(Math.max(d2, wz), 0) + Math.hypot(Math.max(d2, 0), Math.max(wz, 0)) - r;
+/**
+ * A diamond with volume: a rhombic bipyramid (a stretched octahedron). The
+ * outline is a diamond (half diagonals a, b); each large face rises to a
+ * point at half-thickness c. Eight face planes meet under a soft maximum, so
+ * the edges stay crisp but gently rounded.
+ */
+function sdDiamond(x: number, y: number, z: number, a: number, b: number, c: number, soft: number) {
+  const ax = Math.abs(x) / a, ay = Math.abs(y) / b, az = Math.abs(z) / c;
+  // Single face plane in the positive octant: x/a + y/b + z/c = 1 (by symmetry).
+  const k = 1 / Math.sqrt(1 / (a * a) + 1 / (b * b) + 1 / (c * c));
+  const face = (ax + ay + az - 1) * k;
+  // Soften the edges and points by blending with the neighbouring faces.
+  const fx = (-ax + ay + az - 1) * k, fy = (ax - ay + az - 1) * k, fz = (ax + ay - az - 1) * k;
+  const m = Math.max(face, fx, fy, fz);
+  const sum = Math.exp((face - m) / soft) + Math.exp((fx - m) / soft) + Math.exp((fy - m) / soft) + Math.exp((fz - m) / soft);
+  return m + soft * Math.log(sum) - soft * 0.7;
 }
 
 /**
@@ -82,7 +88,7 @@ export const SHAPES: { key: string; name: string; icon: string; sdf: (x: number,
     icon: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
     sdf: (x, y, z) => sdRoundBox(x, y, z, 0.42, 0.07),
   },
-  { key: 'diamond', name: 'Diamond', icon: '<path d="M12 2 20 12 12 22 4 12z"/>', sdf: (x, y, z) => sdDiamond(x, y, z, 0.48, 0.7, 0.1, 0.05) },
+  { key: 'diamond', name: 'Diamond', icon: '<path d="M12 2 20 12 12 22 4 12z"/>', sdf: (x, y, z) => sdDiamond(x, y, z, 0.5, 0.72, 0.34, 0.012) },
 ];
 export const DEFAULT_SHAPE = 'polyhedron';
 

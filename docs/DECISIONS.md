@@ -2,6 +2,10 @@
 
 A running log of choices and changes. Newest first.
 
+## 2026-11-19 (diamond with volume)
+
+**Diamond is a gem, not a slab.** The flat diamond is now a rhombic bipyramid: the same diamond outline, with each large face rising to a point, edges softly rounded by a soft maximum of its face planes.
+
 ## 2026-11-19 (control, pinch, performance, connections)
 
 **Your forms connect.** Measured: a form made from the starting shape had at most 0.35 kinship with any sample, against a 0.62 threshold, while samples within a family reached 0.97, so only samples ever linked. Now every form links to its closest relative; a second link needs the threshold. Link thickness still shows how alike they are.

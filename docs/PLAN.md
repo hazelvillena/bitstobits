@@ -29,7 +29,7 @@ Pick a tool with keys 1 to 4 or the toolbar at the bottom of the sculpt pane. Th
 
 The outline on the form always marks the face being shaped: it moves with the tip of an extrusion or the floor of a pocket. Every extrusion and pocket remembers its end face; aiming near one snaps to it, so you can continue a piece cleanly.
 
-Starting shapes (Shape menu): Polyhedron (default), Sphere, Cube, Diamond.
+Starting shapes (Shape menu): Polyhedron (default), Sphere, Cube, Diamond (a gem-like bipyramid).
 
 Both hands can extrude at the same time. `[` and `]` (or the size control in the toolbar) change the brush size; the surface shows its exact outline. `M` cycles the material. Every tool eases in over a third of a second and is rate-limited, so changes are small and deliberate.
 
